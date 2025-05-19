@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from panel.io import hold
 from bokeh.models import WheelZoomTool
+from csdss_readlib_fullfile import file_reader, pickler, load_pickles, get_trend_fields
 
 def get_vars_list(ls_vars, s_default):
     return [string for string in ls_vars if s_default in string]
@@ -336,8 +337,14 @@ def plot_single_var(df, period_choice, variable, scenario_list,
         else:
             df_stats = df_plot.max()
 
+        #Set upper and lower bounds
+        if np.min(df_stats) > 0:
+            ylower = 0
+        else:
+            ylower = np.min(df_stats)*1.1
+
         return df_stats.hvplot.bar(color='#00809e', title=variable+' '+stat_choice,
-                                   ylabel=units_choice, min_height=600)
+                                   ylabel=units_choice, ylim=(ylower,np.max(df_stats)*1.1), min_height=600)
 
     # Month chosen
     else:
@@ -358,3 +365,24 @@ def plot_single_var(df, period_choice, variable, scenario_list,
         return df_stats.hvplot.bar(color='#00809e', title=variable + ' ' + stat_choice,
                                    ylabel=units_choice, min_height=600)
 
+def run_operation(df, op_choice):
+    #If user selects scenario that has been previously run, grab pickle files
+    if op_choice == "Previously used files":
+        # This runs no matter what. The pickle files allow you to come back and
+        # pull the same variables without waiting for the file reads to complete
+        df_all_data, df_diffs, c_default_units = load_pickles()
+
+
+
+    #Else, request file names and begin new DSS Reader run
+    '''
+    else:
+        append_list, baseline_stack, c_default_units = file_reader(runs, field_list)
+        pickler(append_list, baseline_stack, c_default_units)
+         # Write to Excel.
+        try:
+            df_all_data.to_excel("DSS_contents.xlsx")
+        except:
+            print("Error writing output file. "
+                  "Make sure 'DSS_contents.xlsx' is not open.")
+    '''
