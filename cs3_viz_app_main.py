@@ -43,7 +43,7 @@ logo_name = pn.Row(logo, title, width=750)
 
 template = pn.template.BootstrapTemplate(
     title="DSS Results Viewer for CalSim 3",
-    logo='site_contents/usbr_logo.jpg',
+    logo='usbr_logo.jpg',
     header_background='white',
     header_color='black'
 )
