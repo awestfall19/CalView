@@ -6,6 +6,7 @@ import numpy as np
 import time
 import pickle
 from multiprocessing import Pool
+from os import path
 
 # num_fixed = # of columns that are the same in all cases
 num_fixed = 6
@@ -13,7 +14,9 @@ num_fixed = 6
 def get_trend_fields ():
     l_tr_fields: list = []
     try:
-        with open("TR_fields.txt", "r") as f:
+        # this line is needed for the file to correctly be found once this is bundled into an executable
+        s_path_to_fields = path.abspath(path.join(path.dirname(__file__), 'TR_fields.txt'))
+        with open(s_path_to_fields, "r") as f:
             lines = f.readlines()
     except:
         print('Failed to open TR_fields.txt')

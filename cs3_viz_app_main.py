@@ -479,4 +479,6 @@ tabs = pn.Tabs(('File Picker', file_picker_display),
 
 
 template.main.append(tabs)
-template.servable()
+
+# when this file is ran, the site will automatically launch 
+pn.serve(template, show=True)
