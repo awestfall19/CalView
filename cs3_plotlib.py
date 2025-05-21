@@ -1,4 +1,3 @@
-import time
 import hvplot.pandas
 import pandas as pd
 import numpy as np
@@ -351,7 +350,7 @@ def plot_single_var(df, period_choice, variable, scenario_list,
             y_upper = 0
 
         return pn.Column(
-            pn.pane.HoloViews(df_stats.hvplot.bar(color='#00809e', title=variable+' '+stat_choice,
+            pn.pane.HoloViews(df_stats.hvplot.bar(title=variable+' '+stat_choice,
                                                   ylabel=units_choice, ylim=(y_lower, y_upper),
                                                   grid=True, min_height=600), sizing_mode='stretch_width', linked_axes=False),
             pn.pane.DataFrame(df_stats, max_height=500))

@@ -11,19 +11,14 @@
 # Import data handling functions from our local module
 from csdss_readlib_fullfile import file_reader, pickler, load_pickles, get_trend_fields
 from cs3_plotlib import plot_values, plot_time_group, plot_time_exceedance, plot_single_var, run_operation
-import time
 import panel as pn
 from os import path
 #TODO
-#Set non-file picker tabs to be invisible until triggered
 #Put in code to pickle visualized scenario, make sure it includes user run names
-#Put in loading screen, note that new scenario will be slower
 
 # NOTE: need to use name/main for Pool to work outside of script
-# pn.extension(template='bootstrap')
-pn.extension(sizing_mode='stretch_width')
 
-start_time = time.time()
+pn.extension(sizing_mode='stretch_width')
 
 #Visualizer formatting code
 
@@ -42,13 +37,17 @@ header = pn.Row()
 # Now the row can be edited in trigger functions and will refresh to show header/sliders after file picker tab
 template.main.append(header)
 
+#create a row to hols the tabs
+tabs_row = pn.Row()
+template.main.append(tabs_row)
+
 # Define a Panel Column to hold widgets for the file picker tab
-column = pn.Column()
+file_picker_column = pn.Column()
 col_tracker = []
-#Define panel column to hold file name text input
+#Define panel file_picker_column to hold file name text input
 run_name_column = pn.Column()
 run_name_col_tracker = []
-#Define panel column to hold field selector drop down
+#Define panel file_picker_column to hold field selector drop down
 field_column = pn.Column()
 field_col_tracker = []
 
@@ -59,92 +58,111 @@ timeseries_plots = pn.Row()
 grouped_plots = pn.Row()
 exceedance_plots = pn.Row()
 def update_dss_file_widget(event):
-    global column  # Access the global variable
+    global file_picker_column  # Access the global variable
     if event.name == "value":
-        column.pop(col_tracker.index("dss_file"))  # Remove the dss_file widget
+        file_picker_column.pop(col_tracker.index("dss_file"))  # Remove the dss_file widget
         col_tracker.remove("dss_file")
+        file_picker_column.pop(col_tracker.index("instructions"))
+        col_tracker.remove("instructions")
+
         #Add back dss_file widget with updated file pattern
-        if event.new == "New Calsim outputs":
+        if event.new == "New CalSim outputs":
+            o_instructions = pn.pane.Markdown("### Select the DSS files to be read in.")
             dss_file = pn.widgets.FileSelector(
                 name='Select CalSim output DSS file for new run or pickle file for previous run',
                 file_pattern = "*.dss",
                 only_files=True,
-                max_width=500
+                max_width=1000
             )
         else:
+            o_instructions = pn.pane.Markdown("### Select the pickle files previously created (diffs.pkl, units.pkl, and values.pkl)")
             dss_file = pn.widgets.FileSelector(
                 name='Select CalSim output DSS file for new run or pickle file for previous run',
                 file_pattern="*.pkl",
                 only_files=True,
-                max_width=500
+                max_width=1000
             )
-        column.insert(2, dss_file)
-        col_tracker.insert(2, "dss_file")
 
-    column.param.trigger("objects")  # Trigger UI update
+        # replace widget and instructions
+        file_picker_column.insert(2, o_instructions)
+        col_tracker.insert(2, "instructions")
+        file_picker_column.insert(3, dss_file)
+        col_tracker.insert(3, "dss_file")
+
+    file_picker_column.param.trigger("objects")  # Trigger UI update
 
 def add_run_names_widget(event):
-   # print(event)
-    global column
+    # print(event)
+    global file_picker_column
     global col_tracker
     global run_name_column
     global run_name_col_tracker
     global field_column
     global field_col_tracker
+    # Access the global variable
+    # check if we have already pressed the button
+    if 'add_field_text' in field_col_tracker:
+        return
 
-    files = column[col_tracker.index("dss_file")].value# Access the global variable
+    files = file_picker_column[col_tracker.index("dss_file")].value
 
-   # Check if user is running previous scenario or new
-    if "dss" in files[0].rsplit(".", 1)[1]:
-        run_name_instructions = pn.pane.Markdown(
-            """ # Enter a run name for each file to be used in figures (e.g. Baseline, Alt1, etc.). One run must be named Baseline for visualizer to work """)
-        run_name_column.append(run_name_instructions)
-        run_name_col_tracker.append("run_name_instructions")
+    # Check if user is running previous scenario or new
+    if len(files) > 0:
+        if "dss" in files[0].rsplit(".", 1)[1]:
+            run_name_instructions = pn.pane.Markdown(""" 
+                # Enter a run name for each file (e.g. Baseline, Alt1, etc.). 
+                
+                ## <span style="color:red">One run must be named Baseline for visualizer to work </span>
+                """)
+            run_name_column.append(run_name_instructions)
+            run_name_col_tracker.append("run_name_instructions")
 
-        #have user provide run names for each file, new scenario has been selected
-        for file in files:
+            #have user provide run names for each file, new scenario has been selected
+            for file in files:
                 dss_run_file_label = pn.pane.Markdown(file)
-                dss_run_name = pn.widgets.TextInput(width=500)
+                dss_run_name = pn.widgets.TextInput(width=500, placeholder='Enter name for file')
 
                 run_name_column.append(dss_run_file_label)
                 run_name_col_tracker.append("dss_run_file_label")
                 run_name_column.append(dss_run_name)
                 run_name_col_tracker.append("dss_run_name")
 
-    #Also add optional field add text box
-    add_field_instructions = pn.pane.Markdown(
-        ''' # OPTIONAL: Add additional fields to visualize that are not present in Variable Selector DropDown in top navigation bar. Seperate with commas, no spaces. ''')
-    field_column.append(add_field_instructions)
-    field_col_tracker.append("add_field_instructions")
+        #Also add optional field add text box
+        add_field_instructions = pn.pane.Markdown("""
+        # OPTIONAL additional fields: 
+        
+        ## Add additional fields to visualize that are not present in the default list. Separate with commas, no spaces.
+        """)
+        field_column.append(add_field_instructions)
+        field_col_tracker.append("add_field_instructions")
 
-    add_field_text = pn.widgets.TextInput(width=500)
+        add_field_text = pn.widgets.TextInput(width=500)
 
-    field_column.append(add_field_text)
-    field_col_tracker.append("add_field_text")
+        field_column.append(add_field_text)
+        field_col_tracker.append("add_field_text")
 
-
-    if len(files) > 0:
         # Add another continue button for when user is done adding run names to files
-        done_naming = pn.widgets.Button(name="Continue")
+        done_naming = pn.widgets.Button(name="Continue", width=500, button_type='primary')
         # When user is done adding file/run names, save inputs to variables
         done_naming.on_click(update_run_names)
 
         field_column.append(done_naming)
         field_col_tracker.append("done_naming")
 
-    #Refresh field column
+    #Refresh field file_picker_column
     field_column.param.trigger("objects")
 
-    #Refresh run names column
+    #Refresh run names file_picker_column
     run_name_column.param.trigger("objects")  # Trigger UI update
 
 def update_run_names(event):
-    global column
+    global file_picker_column
     global col_tracker
     global run_name_column
     global run_name_col_tracker
     global field_column
     global field_col_tracker
+    global file_picker_display
 
     # row to indicate that the files are being read and it is loading
     loading_row = pn.Row(pn.indicators.LoadingSpinner(
@@ -153,13 +171,13 @@ def update_run_names(event):
     field_column.append(loading_row)
 
     #Get selected files
-    files = column[col_tracker.index("dss_file")].value  # Access the global variable
+    files = file_picker_column[col_tracker.index("dss_file")].value  # Access the global variable
     #Check if files are dss or pkl (new or old scenario)
     if "dss" in files[0].rsplit(".",1)[1]:
         #Get indices of dss run names
         dss_name_indices = [i for i, x in enumerate(run_name_col_tracker) if x=="dss_run_name"]
         #Get file names
-        files = column[col_tracker.index("dss_file")].value
+        files = file_picker_column[col_tracker.index("dss_file")].value
 
         #Get default fields and any added ones
         l_tr_fields = get_trend_fields()
@@ -203,10 +221,14 @@ def update_run_names(event):
 
     # removing loading before adding tabs
     field_column.pop(-1)
+    field_column.param.trigger("objects")
 
     #Fill in widgets for other tabs
     create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_diffs)
-    #Make tabs visible
+
+    # once we have the widgets and graphs, remove the file picker
+    for _ in range(len(file_picker_display)):
+        file_picker_display.pop(0)
 
 
 def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_diffs):
@@ -215,6 +237,7 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
     global exceedance_plots
     global timeseries_plots
     global header
+    global tabs_row
 
     # Select which alts to examine
     scen_selector = pn.widgets.MultiChoice(
@@ -237,7 +260,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         options=['TAF', 'CFS'],
         button_style='outline',
         button_type='primary',
-        width=200
+        width=200,
+        margin=32
     )
 
     period_selector = pn.widgets.Select(
@@ -409,6 +433,15 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
     exceedance_plots.append(pn.Column(exceedance_title,bound_plot_exceedance))
     exceedance_plots.append(pn.Column(exceedance_diff_title,bound_plot_diffs_exceedance))
 
+    tabs = pn.Tabs(
+        ('Single Variable', single_var_plots),
+        ('Timeseries', timeseries_plots),
+        ('Time-Aggregated', grouped_plots),
+        ('Exceedance', exceedance_plots))
+
+    tabs_row.append(tabs)
+    tabs_row.param.trigger("objects")
+
 make_archive = False
 
 # This is a list of the variables you want to retrieve.
@@ -428,8 +461,8 @@ old_new_sel = pn.widgets.RadioButtonGroup(
     value = 'Previously generated visuals',
     button_style='outline',
     button_type='primary',
-    options=["Previously generated visuals", "New Calsim outputs"],
-    max_width=500
+    options=["Previously generated visuals", "New CalSim outputs"],
+    max_width=1000
 )
 
 #Create file selector widget
@@ -437,46 +470,39 @@ dss_file = pn.widgets.FileSelector(
     name = 'Select CalSim output DSS file for new run or pickle file for previous run',
     file_pattern = "*.pkl",
     only_files = True,
-    max_width=500
+    max_width=1000,
+    align='center'
 )
 
-#Add all widgets to column
-column.append(file_picker_title)
+o_instructions = pn.pane.Markdown("### Select the pickle files previously created (diffs.pkl, units.pkl, and values.pkl).")
+
+#Add all widgets to file_picker_column
+file_picker_column.append(file_picker_title)
 col_tracker.append("file_picker_title")
-column.append(old_new_sel)
+file_picker_column.append(old_new_sel)
 col_tracker.append("old_new_sel")
-column.append(dss_file)
+file_picker_column.append(o_instructions)
+col_tracker.append("instructions")
+file_picker_column.append(dss_file)
 col_tracker.append("dss_file")
 
 #Watch the old_new_sel widget and call remove_widget function to update dss_file if a change event occurs
 choice_watcher = old_new_sel.param.watch(update_dss_file_widget, ['value'], onlychanged=True)
 
 #Add Done Selecting Files button
-done_selecting = pn.widgets.Button(name="Continue", max_width=500)
+done_selecting = pn.widgets.Button(name="Continue", max_width=1000, button_type='primary')
 
 #When done selecting file button is clicked, add text boxes for user to name each file's run
 #Eventually, this will only be for new dss files because pickle will hold run names
 done_selecting.on_click(add_run_names_widget)
 
-column.append(done_selecting)
+file_picker_column.append(done_selecting)
 col_tracker.append("done_selecting")
 
-#Set up the initial layout
-file_picker_display = pn.Column(
-    column,
-    pn.Row(
-        pn.Column(run_name_column),
-                pn.Column(field_column))
-)
+# Set up the initial layout
+file_picker_display = pn.Row(file_picker_column, pn.Column(run_name_column, field_column), margin=25)
 
-tabs = pn.Tabs(('File Picker', file_picker_display),
-    ('Single Variable', single_var_plots),
-        ('Timeseries', timeseries_plots),
-        ('Time-Aggregated', grouped_plots),
-        ('Exceedance', exceedance_plots))
-
-
-template.main.append(tabs)
+template.main.append(file_picker_display)
 
 # when this file is ran, the site will automatically launch
 pn.serve(template, show=True)
