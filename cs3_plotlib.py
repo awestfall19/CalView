@@ -2,6 +2,7 @@ import time
 import hvplot.pandas
 import pandas as pd
 import numpy as np
+import panel as pn
 from panel.io import hold
 from bokeh.models import WheelZoomTool
 from csdss_readlib_fullfile import file_reader, pickler, load_pickles, get_trend_fields
@@ -21,7 +22,7 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units_al
 
     # Unit conversion
     if var_list == []:
-        return
+        return pn.pane.Markdown('## Select variables above to display plot.')
     for var in var_list:
         try:
             original_unit = c_default_units_all[var].strip()
@@ -58,13 +59,12 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units_al
 
     keeplist.remove('Date')
     print(df_plot[keeplist].min().min(), df_plot[keeplist].max().max())
-    return df_plot.hvplot(
+    return pn.Column(pn.pane.HoloViews(df_plot.hvplot(
         x='Date',
         ylabel=unit_choice,
         grid=True,
-        min_height=600,
-        #ylim=(df_plot[keeplist].min().min(), df_plot[keeplist].max().max())
-    )
+        min_height=600
+    ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, index=False, max_height=500))
 
 def plot_time_group(scenario_list, var_list, unit_choice, df_all,
                     c_default_units_all, period_choice):
@@ -79,7 +79,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 
     # Unit conversion
     if var_list == []:
-        return
+        return pn.pane.Markdown('## Select variables above to display plot.')
     for var in var_list:
         try:
             original_unit = c_default_units_all[var].strip()
@@ -134,11 +134,11 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         df_wide = df_wide.drop('Date', axis=1)
         df_grouped = df_wide.groupby(by=[period_choice]).sum()
         df_plot = df_grouped[keeplist]
-        return df_plot.hvplot(
+        return pn.Column(pn.pane.HoloViews(df_plot.hvplot(
             min_height=600,
             grid=True,
             ylabel=unit_choice
-        )
+        ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
 
     # selected a month
     else:
@@ -147,11 +147,10 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         df_wide = df_wide.drop('Date', axis=1)
         df_grouped = df_wide.groupby(by=['DY']).sum()
         df_plot = df_grouped[keeplist]
-        return df_plot.hvplot(
+        return pn.Column(pn.pane.HoloViews(df_plot.hvplot(
             min_height=600, xlabel='Year', ylabel=unit_choice,
-            grid=True,
-            legend="bottom"
-        )
+            grid=True
+        ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
 
 
 def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
@@ -166,7 +165,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 
     # Unit conversion
     if var_list == []:
-        return
+        return pn.pane.Markdown('## Select variables above to display plot.')
     for var in var_list:
         try:
             original_unit = c_default_units_all[var].strip()
@@ -241,9 +240,9 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         # print(unit_choice)
         # print(scenario_list)
         # print(var_list)
-        return df_exceed.hvplot(
+        return pn.Column(pn.pane.HoloViews(df_exceed.hvplot(
             min_height=600, ylabel=unit_choice, grid=True
-        )
+        ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, max_height=500))
 
     # month choice
     else:
@@ -271,9 +270,9 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         # print(unit_choice)
         # print(scenario_list)
         # print(var_list)
-        return df_exceed.hvplot(
+        return pn.Column(pn.pane.HoloViews(df_exceed.hvplot(
             min_height=600, ylabel=unit_choice, grid=True
-        )
+        ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, max_height=500))
 
 def plot_single_var(df, period_choice, variable, scenario_list,
                     units_choice, stat_choice, c_default_units):
@@ -347,9 +346,11 @@ def plot_single_var(df, period_choice, variable, scenario_list,
         else:
             ylower = np.min(df_stats)*1.1
 
-        return df_stats.hvplot.bar(color='#00809e', title=variable+' '+stat_choice,
-                                   ylabel=units_choice, ylim=(ylower,np.max(df_stats)*1.1),
-                                   grid=True, min_height=600)
+        return pn.Column(
+            pn.pane.HoloViews(df_stats.hvplot.bar(color='#00809e', title=variable+' '+stat_choice,
+                                                  ylabel=units_choice, ylim=(ylower,np.max(df_stats)+1),
+                                                  grid=True, min_height=600), sizing_mode='stretch_width', linked_axes=False),
+            pn.pane.DataFrame(df_stats, max_height=500))
 
     # Month chosen
     else:
@@ -367,10 +368,19 @@ def plot_single_var(df, period_choice, variable, scenario_list,
         else:
             df_stats = df_plot.max()
 
-        return df_stats.hvplot.bar(color='#00809e', title=variable + ' ' + stat_choice,
+        # Set upper and lower bounds
+        if np.min(df_stats) > 0:
+            ylower = 0
+        else:
+            ylower = np.min(df_stats)*1.1
+
+        return pn.Column(
+            pn.pane.HoloViews(df_stats.hvplot.bar(color='#00809e', title=variable + ' ' + stat_choice,
                                    grid=True,
                                    ylabel=units_choice,
-                                   min_height=600)
+                                    ylim=(ylower, np.max(df_stats) + 1),
+                                   min_height=600), sizing_mode='stretch_width', linked_axes=False),
+            pn.pane.DataFrame(df_stats, max_height=500))
 
 def run_operation(df, op_choice):
     #If user selects scenario that has been previously run, grab pickle files

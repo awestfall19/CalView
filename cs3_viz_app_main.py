@@ -13,6 +13,7 @@ from csdss_readlib_fullfile import file_reader, pickler, load_pickles, get_trend
 from cs3_plotlib import plot_values, plot_time_group, plot_time_exceedance, plot_single_var, run_operation
 import time
 import panel as pn
+from os import path
 #TODO
 #Set non-file picker tabs to be invisible until triggered
 #Put in code to pickle visualized scenario, make sure it includes user run names
@@ -25,25 +26,13 @@ pn.extension(sizing_mode='stretch_width')
 start_time = time.time()
 
 #Visualizer formatting code
-logo = pn.pane.JPG(
-    'site_contents/usbr_logo.jpg',
-    height=75
-)
 
-title = pn.pane.Markdown("""
-    # DSS Results Viewer for CalSim 3
-    ### USBR Technical Service Center
-    -----------------------------------
-    ###  
-    """,
-    width=600
-)
-
-logo_name = pn.Row(logo, title, width=750)
+# path for the compiled executable to find logo
+s_logo_path = path.abspath(path.join(path.dirname(__file__), 'usbr_logo.jpg'))
 
 template = pn.template.BootstrapTemplate(
     title="DSS Results Viewer for CalSim 3",
-    logo='usbr_logo.jpg',
+    logo=s_logo_path,
     header_background='white',
     header_color='black'
 )
@@ -80,14 +69,14 @@ def update_dss_file_widget(event):
                 name='Select CalSim output DSS file for new run or pickle file for previous run',
                 file_pattern = "*.dss",
                 only_files=True,
-                width=500
+                max_width=500
             )
         else:
             dss_file = pn.widgets.FileSelector(
                 name='Select CalSim output DSS file for new run or pickle file for previous run',
                 file_pattern="*.pkl",
                 only_files=True,
-                width=500
+                max_width=500
             )
         column.insert(2, dss_file)
         col_tracker.insert(2, "dss_file")
@@ -157,6 +146,12 @@ def update_run_names(event):
     global field_column
     global field_col_tracker
 
+    # row to indicate that the files are being read and it is loading
+    loading_row = pn.Row(pn.indicators.LoadingSpinner(
+                value=True, height=30, width=30, color="primary"
+            ), pn.pane.Markdown("## Loading in data. New files will take longer than previously generated visuals."))
+    field_column.append(loading_row)
+
     #Get selected files
     files = column[col_tracker.index("dss_file")].value  # Access the global variable
     #Check if files are dss or pkl (new or old scenario)
@@ -206,6 +201,9 @@ def update_run_names(event):
     scenario_names = df_all_data['Scenario'].unique().tolist()
     var_names = df_all_data.columns.to_list()[6:]
 
+    # removing loading before adding tabs
+    field_column.pop(-1)
+
     #Fill in widgets for other tabs
     create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_diffs)
     #Make tabs visible
@@ -244,7 +242,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
 
     period_selector = pn.widgets.Select(
         name='Period selector',
-        options={"Water Year": "WY", "Calendar Year": "DY", "Contract Year": "CY",
+        # Contract Year is throwing an error currently
+        options={"Water Year": "WY", "Calendar Year": "DY", #"Contract Year": "CY",
                  "January": 1, "February": 2, "March": 3, "April": 4,
                  "May": 5, "June": 6, "July": 7, "August": 8,
                  "September": 9, "October": 10, "November": 11, "December": 12},
@@ -431,7 +430,7 @@ old_new_sel = pn.widgets.RadioButtonGroup(
     button_style='outline',
     button_type='primary',
     options=["Previously generated visuals", "New Calsim outputs"],
-    width = 500
+    max_width=500
 )
 
 #Create file selector widget
@@ -439,7 +438,7 @@ dss_file = pn.widgets.FileSelector(
     name = 'Select CalSim output DSS file for new run or pickle file for previous run',
     file_pattern = "*.pkl",
     only_files = True,
-    width = 500
+    max_width=500
 )
 
 #Add all widgets to column
@@ -454,7 +453,7 @@ col_tracker.append("dss_file")
 choice_watcher = old_new_sel.param.watch(update_dss_file_widget, ['value'], onlychanged=True)
 
 #Add Done Selecting Files button
-done_selecting = pn.widgets.Button(name = "Continue")
+done_selecting = pn.widgets.Button(name="Continue", max_width=500)
 
 #When done selecting file button is clicked, add text boxes for user to name each file's run
 #Eventually, this will only be for new dss files because pickle will hold run names
