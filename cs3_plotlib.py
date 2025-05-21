@@ -58,7 +58,7 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units_al
     df_plot = df_wide.drop([var for var in df_wide if var not in keeplist])
 
     keeplist.remove('Date')
-    print(df_plot[keeplist].min().min(), df_plot[keeplist].max().max())
+    #print(df_plot[keeplist].min().min(), df_plot[keeplist].max().max())
     return pn.Column(pn.pane.HoloViews(df_plot.hvplot(
         x='Date',
         ylabel=unit_choice,
@@ -322,7 +322,7 @@ def plot_single_var(df, period_choice, variable, scenario_list,
 
     if period_choice in ['WY', 'DY', 'CY']:
         if period_choice == "CY":
-            df_all_plot['CY'] = np.where(df_all_plot.Month >= 3, df_all_plot.DY, df_all_plot.DY - 1)
+            df_wide['CY'] = np.where(df_wide.Month >= 3, df_wide.DY, df_wide.DY - 1)
         df_timecounts = df_wide.groupby(by=[period_choice]).count()
         droplist = df_timecounts[df_timecounts['Date'] < 12].index
         df_wide = df_wide[df_wide[period_choice].isin(droplist) == False]
@@ -342,13 +342,17 @@ def plot_single_var(df, period_choice, variable, scenario_list,
 
         #Set upper and lower bounds
         if np.min(df_stats) > 0:
-            ylower = 0
+            y_lower = 0
         else:
-            ylower = np.min(df_stats)*1.1
+            y_lower = np.min(df_stats)*1.05
+        if np.max(df_stats) > 0:
+            y_upper = np.max(df_stats)*1.05
+        else:
+            y_upper = 0
 
         return pn.Column(
             pn.pane.HoloViews(df_stats.hvplot.bar(color='#00809e', title=variable+' '+stat_choice,
-                                                  ylabel=units_choice, ylim=(ylower,np.max(df_stats)+1),
+                                                  ylabel=units_choice, ylim=(y_lower, y_upper),
                                                   grid=True, min_height=600), sizing_mode='stretch_width', linked_axes=False),
             pn.pane.DataFrame(df_stats, max_height=500))
 
@@ -370,15 +374,19 @@ def plot_single_var(df, period_choice, variable, scenario_list,
 
         # Set upper and lower bounds
         if np.min(df_stats) > 0:
-            ylower = 0
+            y_lower = 0
         else:
-            ylower = np.min(df_stats)*1.1
+            y_lower = np.min(df_stats) * 1.05
+        if np.max(df_stats) > 0:
+            y_upper = np.max(df_stats) * 1.05
+        else:
+            y_upper = 0
 
         return pn.Column(
             pn.pane.HoloViews(df_stats.hvplot.bar(color='#00809e', title=variable + ' ' + stat_choice,
                                    grid=True,
                                    ylabel=units_choice,
-                                    ylim=(ylower, np.max(df_stats) + 1),
+                                    ylim=(y_lower, y_upper),
                                    min_height=600), sizing_mode='stretch_width', linked_axes=False),
             pn.pane.DataFrame(df_stats, max_height=500))
 

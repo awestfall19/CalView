@@ -242,8 +242,7 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
 
     period_selector = pn.widgets.Select(
         name='Period selector',
-        # Contract Year is throwing an error currently
-        options={"Water Year": "WY", "Calendar Year": "DY", #"Contract Year": "CY",
+        options={"Water Year": "WY", "Calendar Year": "DY", "Contract Year": "CY",
                  "January": 1, "February": 2, "March": 3, "April": 4,
                  "May": 5, "June": 6, "July": 7, "August": 8,
                  "September": 9, "October": 10, "November": 11, "December": 12},
