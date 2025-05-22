@@ -295,8 +295,12 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
 
     # 20241223: Create different dataframes for each function call
     # Trying to fix non-independent plots issue
-    df_all_data_ts = df_all_data.copy(deep=True)
-    df_all_data_ts_diffs = df_diffs.copy(deep=True)
+    # df_all_data_ts = df_all_data.copy(deep=True)
+    # df_all_data_ts_diffs = df_diffs.copy(deep=True)
+
+    # remove Baseline from the differences dataframe as all values are zero
+    df_diffs = df_diffs[df_diffs.Scenario != 'Baseline']
+
     # Okay, so separate dfs isn't cutting it.
     # Try turning off y-lim
 
@@ -305,7 +309,7 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         scenario_list=scen_selector,
         var_list=var_selector,
         unit_choice=unit_selector,
-        df_all=df_all_data_ts,
+        df_all=df_all_data,
         c_default_units_all=c_default_units
     )
 
@@ -314,7 +318,7 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         scenario_list=scen_selector,
         var_list=var_selector,
         unit_choice=unit_selector,
-        df_all=df_all_data_ts_diffs,
+        df_all=df_diffs,
         c_default_units_all=c_default_units
     )
 
@@ -360,7 +364,7 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
 
     bound_single_var_plot = pn.bind(
         plot_single_var,
-        df=df_all_data,
+        df_all=df_all_data,
         period_choice=period_selector,
         variable=single_var_selector,
         scenario_list=scen_selector,
@@ -371,7 +375,7 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
 
     bound_single_var_diff_plot = pn.bind(
         plot_single_var,
-        df=df_diffs,
+        df_all=df_diffs,
         period_choice=period_selector,
         variable=single_var_selector,
         scenario_list=scen_selector,
