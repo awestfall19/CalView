@@ -68,6 +68,7 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units_al
         return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
             x='Date',
             ylabel=unit_choice,
+            xlabel='Date',
             grid=True,
             min_height=600
         ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, index=False, max_height=500))
@@ -76,6 +77,7 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units_al
         return pn.Column(pn.pane.HoloViews(df_plot.hvplot(
             x='Date',
             ylabel=unit_choice,
+            xlabel='Date',
             grid=True,
             min_height=600
         ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, index=False, max_height=500))
@@ -159,13 +161,15 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
             return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
                 min_height=600,
                 grid=True,
-                ylabel=unit_choice
+                ylabel=unit_choice,
+                xlabel=period_choice,
             ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
         else:
             return pn.Column(pn.pane.HoloViews(df_plot.hvplot(
                 min_height=600,
                 grid=True,
-                ylabel=unit_choice
+                ylabel=unit_choice,
+                xlabel=period_choice,
             ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
 
     # selected a month
@@ -179,19 +183,23 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         # add horizontal line if we are doing the differences plot
         if 'Baseline' not in scenario_list:
             return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
-                min_height=600, xlabel='Year', ylabel=unit_choice,
+                min_height=600,
+                ylabel=unit_choice,
+                xlabel='Year',
                 grid=True
             ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
 
         else:
             return pn.Column(pn.pane.HoloViews(df_plot.hvplot(
-                min_height=600, xlabel='Year', ylabel=unit_choice,
+                min_height=600,
+                ylabel=unit_choice,
+                xlabel='Year',
                 grid=True
             ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
 
 
 def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
-                    c_default_units_all, period_choice):
+                         c_default_units_all, period_choice):
 
     df_all_plot = df_all.copy(deep=True)
     durations = [date.day for date in df_all_plot['Date']]
@@ -269,6 +277,11 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         # plot_pos = df_grouped.index
         df_exceed = pd.DataFrame(index=df_grouped.index)
 
+        # add exceedance probabilities
+        i_n = df_grouped.shape[0]
+        ld_probabilities = [m/(i_n+1) * 100 for m in range(i_n, 0, -1)]
+        df_exceed['exceedance_probability'] = ld_probabilities
+
         for var in keeplist:
             if var != 'Date':
                 l_sorted = df_grouped[var].sort_values().reset_index(drop=True)
@@ -281,12 +294,24 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         # add horizontal line if we are doing the differences plot
         if 'Baseline' not in scenario_list:
             return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_exceed.hvplot(
-                min_height=600, ylabel=unit_choice, grid=True
+                x='exceedance_probability',
+                min_height=600,
+                ylabel=unit_choice,
+                xlabel='Probability of Exceedance',
+                flip_xaxis=True,
+                xformatter='%f%%',
+                grid=True
             ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, max_height=500))
 
         else:
             return pn.Column(pn.pane.HoloViews(df_exceed.hvplot(
-                min_height=600, ylabel=unit_choice, grid=True
+                x='exceedance_probability',
+                min_height=600,
+                ylabel=unit_choice,
+                xlabel='Probability of Exceedance',
+                flip_xaxis=True,
+                xformatter='%f%%',
+                grid=True
             ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, max_height=500))
 
     # month choice
@@ -302,6 +327,11 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         # plot_pos = df_grouped.index
         df_exceed = pd.DataFrame(index=df_grouped.index)
 
+        # add exceedance probabilities
+        i_n = df_grouped.shape[0]
+        ld_probabilities = [m / (i_n + 1) * 100 for m in range(i_n, 0, -1)]
+        df_exceed['exceedance_probability'] = ld_probabilities
+
         for var in keeplist:
             if var != 'Date':
                 l_sorted = df_grouped[var].sort_values().reset_index(drop=True)
@@ -314,12 +344,24 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         # add horizontal line if we are doing the differences plot
         if 'Baseline' not in scenario_list:
             return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_exceed.hvplot(
-                min_height=600, ylabel=unit_choice, grid=True
+                x='exceedance_probability',
+                min_height=600,
+                ylabel=unit_choice,
+                xlabel='Probability of Exceedance',
+                flip_xaxis=True,
+                xformatter='%f%%',
+                grid=True
             ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, max_height=500))
 
         else:
             return pn.Column(pn.pane.HoloViews(df_exceed.hvplot(
-                min_height=600, ylabel=unit_choice, grid=True
+                x='exceedance_probability',
+                min_height=600,
+                ylabel=unit_choice,
+                xlabel='Probability of Exceedance',
+                flip_xaxis=True,
+                xformatter='%f%%',
+                grid=True
             ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, max_height=500))
 
 def plot_single_var(df_all, period_choice, variable, scenario_list,
@@ -407,7 +449,7 @@ def plot_single_var(df_all, period_choice, variable, scenario_list,
             return pn.Column(
                 pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_stats.hvplot.bar(title=variable+' '+stat_choice,
                                                       ylabel=units_choice, ylim=(y_lower, y_upper),
-                                                      grid=True, min_height=600), sizing_mode='stretch_width', linked_axes=False),
+                                                      grid=True, min_height=600, legend=False), sizing_mode='stretch_width', linked_axes=False),
                 pn.pane.DataFrame(df_stats, max_height=500))
         else:
             return pn.Column(
@@ -445,16 +487,16 @@ def plot_single_var(df_all, period_choice, variable, scenario_list,
         # add horizontal line if we are doing the differences plot
         if 'Baseline' not in scenario_list:
             return pn.Column(
-                pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_stats.hvplot.bar(color='#00809e', title=variable + ' ' + stat_choice,
-                                       grid=True,
-                                       ylabel=units_choice,
-                                        ylim=(y_lower, y_upper),
-                                       min_height=600), sizing_mode='stretch_width', linked_axes=False),
+                pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_stats.hvplot.bar(title=variable + ' ' + stat_choice,
+                                                                                                      grid=True,
+                                                                                                      ylabel=units_choice,
+                                                                                                      ylim=(y_lower, y_upper),
+                                       min_height=600, legend=False), sizing_mode='stretch_width', linked_axes=False),
                 pn.pane.DataFrame(df_stats, max_height=500))
 
         else:
             return pn.Column(
-                pn.pane.HoloViews(df_stats.hvplot.bar(color='#00809e', title=variable + ' ' + stat_choice,
+                pn.pane.HoloViews(df_stats.hvplot.bar(title=variable + ' ' + stat_choice,
                                                       grid=True,
                                                       ylabel=units_choice,
                                                       ylim=(y_lower, y_upper),
