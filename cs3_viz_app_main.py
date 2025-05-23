@@ -14,11 +14,12 @@ from cs3_plotlib import plot_values, plot_time_group, plot_time_exceedance, plot
 import panel as pn
 import os
 from os import path
+import warnings
 #TODO
 #Put in code to pickle visualized scenario, make sure it includes user run names
 
 # NOTE: need to use name/main for Pool to work outside of script
-
+warnings.filterwarnings('ignore')
 pn.extension(sizing_mode='stretch_width')
 
 #Visualizer formatting code
@@ -127,7 +128,7 @@ def add_run_names_widget(event):
             run_name_instructions = pn.pane.Markdown(""" 
                 # Enter a run name for each file (e.g. Baseline, Alt1, etc.). 
                 
-                ## <span style="color:red">One run must be marked as Baseline for visualizer to work </span>
+                ## <span style="color:red">One run must be marked for comparison.</span>
                 """)
             run_name_column.append(run_name_instructions)
             run_name_col_tracker.append("run_name_instructions")
@@ -136,13 +137,13 @@ def add_run_names_widget(event):
             for file in files:
                 dss_run_file_label = pn.pane.Markdown("### File name: " + file)
 
-                baseline_check = pn.widgets.Checkbox(name='Baseline')
-                dss_run_name = pn.widgets.TextInput(width=500, placeholder='Enter name for file', disabled=baseline_check)
+                comparison_check = pn.widgets.Checkbox(name='Comparison scenario')
+                dss_run_name = pn.widgets.TextInput(width=500, placeholder='Enter name for file')
 
                 run_name_column.append(dss_run_file_label)
                 run_name_col_tracker.append("dss_run_file_label")
-                run_name_column.append(baseline_check)
-                run_name_col_tracker.append("dss_baseline_checkbox")
+                run_name_column.append(comparison_check)
+                run_name_col_tracker.append("dss_comparison_checkbox")
                 run_name_column.append(dss_run_name)
                 run_name_col_tracker.append("dss_run_name")
 
@@ -203,6 +204,7 @@ def update_run_names(event):
     global field_column
     global field_col_tracker
     global file_picker_display
+    global s_comparison
 
     # Get selected files
     files = file_picker_column[col_tracker.index("dss_file")].value  # Access the global variable
@@ -213,9 +215,9 @@ def update_run_names(event):
         field_column.pop(error_index)
         field_col_tracker.pop(error_index)
 
-    #check if we have exactl one file marked as Baseline and if not give an error
-    if sum([run_name_column[i].value for i, x in enumerate(run_name_col_tracker) if x == "dss_baseline_checkbox"]) != 1 and "dss" in files[0].rsplit(".",1)[1]:
-        error_message = pn.pane.Markdown("## Please make sure that exactly one file is marked as Baseline.")
+    #check if we have exactl one file marked for comparison and if not give an error
+    if sum([run_name_column[i].value for i, x in enumerate(run_name_col_tracker) if x == "dss_comparison_checkbox"]) != 1 and "dss" in files[0].rsplit(".",1)[1]:
+        error_message = pn.pane.Markdown("## Please make sure that exactly one file is marked for comparison.")
         field_column.append(error_message)
         field_col_tracker.append('error_message')
         return
@@ -236,7 +238,7 @@ def update_run_names(event):
         # Get indices of dss run names
         dss_name_indices = [i for i, x in enumerate(run_name_col_tracker) if x == "dss_run_name"]
         # get the value of the checkbox for each run
-        baseline_indices = [run_name_column[i].value for i, x in enumerate(run_name_col_tracker) if x == "dss_baseline_checkbox"]
+        comparison_indices = [run_name_column[i].value for i, x in enumerate(run_name_col_tracker) if x == "dss_comparison_checkbox"]
 
         # Get file names
         files = file_picker_column[col_tracker.index("dss_file")].value
@@ -253,14 +255,16 @@ def update_run_names(event):
             # structure of runs is [["Description_1", ("File_1.dss")],
             #               ["Description_2", ("File_2.dss")],
             #          ...  ["Description_n", ("File_n.dss")]]
-            # The names can be anything though, e.g. ["Alt2v1", Alt2v1_VAs.dss"] but must contain one called Baseline
-            # find where the box is checked for Baseline and set that to be called Baseline
-            if baseline_indices[file_index]:
-                runs.append(['Baseline', (files[file_index])])
-            else:
-                runs.append([run_name_column[run_index].value, (files[file_index])])
+            # The names can be anything though, e.g. ["Alt2v1", Alt2v1_VAs.dss"]
+
+            # find where the box is checked for comparison and set somparison name tracker to files name
+            if comparison_indices[file_index]:
+                # update global variable
+                s_comparison = run_name_column[run_index].value
+
+            runs.append([run_name_column[run_index].value, (files[file_index])])
         print(runs)
-        append_list, baseline_stack, c_default_units = file_reader(runs, field_list)
+        append_list, baseline_stack, c_default_units = file_reader(runs, field_list, s_comparison)
         pickler(append_list, baseline_stack, c_default_units)
 
         # This runs no matter what. The pickle files allow you to come back and
@@ -271,8 +275,7 @@ def update_run_names(event):
         try:
             df_all_data.to_excel("DSS_contents.xlsx")
         except:
-            print("Error writing output file. "
-                  "Make sure 'DSS_contents.xlsx' is not open.")
+            print("Error writing output file. ")
 
         print(f'Pulled: {len(runs)} files')
         print(runs)
@@ -281,12 +284,17 @@ def update_run_names(event):
     else:
         df_all_data, df_diffs, c_default_units = load_pickles()
 
+    # need to pull comparison scenario from un pickled files
+    s_comparison = c_default_units['comparison scenario']
+
     #Now that pickles have been created/loaded, move forward with initiating other tabs
     scenario_names = df_all_data['Scenario'].unique().tolist()
     var_names = df_all_data.columns.to_list()[6:]
 
     # removing loading before adding tabs
-    field_column.pop(-1)
+    loading_index = field_col_tracker.index('loading_row')
+    field_column.pop(loading_index)
+    field_col_tracker.pop(loading_index)
     field_column.param.trigger("objects")
 
     #Fill in widgets for other tabs
@@ -304,6 +312,7 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
     global timeseries_plots
     global header
     global tabs_row
+    global s_comparison
 
     # Select which alts to examine
     scen_selector = pn.widgets.MultiChoice(
@@ -364,8 +373,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
     # df_all_data_ts = df_all_data.copy(deep=True)
     # df_all_data_ts_diffs = df_diffs.copy(deep=True)
 
-    # remove Baseline from the differences dataframe as all values are zero
-    df_diffs = df_diffs[df_diffs.Scenario != 'Baseline']
+    # remove comparison scen from the differences dataframe as all values are zero
+    df_diffs = df_diffs[df_diffs.Scenario != s_comparison]
 
     # Okay, so separate dfs isn't cutting it.
     # Try turning off y-lim
@@ -376,7 +385,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         var_list=var_selector,
         unit_choice=unit_selector,
         df_all=df_all_data,
-        c_default_units_all=c_default_units
+        c_default_units_all=c_default_units,
+        s_comparison=s_comparison
     )
 
     bound_plot_diffs_ts = pn.bind(
@@ -385,7 +395,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         var_list=var_selector,
         unit_choice=unit_selector,
         df_all=df_diffs,
-        c_default_units_all=c_default_units
+        c_default_units_all=c_default_units,
+        s_comparison=s_comparison
     )
 
     bound_plot_grouped = pn.bind(
@@ -395,7 +406,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         unit_choice=unit_selector,
         df_all=df_all_data,
         c_default_units_all=c_default_units,
-        period_choice=period_selector
+        period_choice=period_selector,
+        s_comparison=s_comparison
     )
 
     bound_plot_grouped_diff = pn.bind(
@@ -405,7 +417,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         unit_choice=unit_selector,
         df_all=df_diffs,
         c_default_units_all=c_default_units,
-        period_choice=period_selector
+        period_choice=period_selector,
+        s_comparison=s_comparison
     )
 
     bound_plot_exceedance = pn.bind(
@@ -415,7 +428,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         unit_choice=unit_selector,
         df_all=df_all_data,
         c_default_units_all=c_default_units,
-        period_choice=period_selector
+        period_choice=period_selector,
+        s_comparison=s_comparison
     )
 
     bound_plot_diffs_exceedance = pn.bind(
@@ -425,7 +439,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         unit_choice=unit_selector,
         df_all=df_diffs,
         c_default_units_all=c_default_units,
-        period_choice=period_selector
+        period_choice=period_selector,
+        s_comparison=s_comparison
     )
 
     bound_single_var_plot = pn.bind(
@@ -436,7 +451,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         scenario_list=scen_selector,
         units_choice=unit_selector,
         stat_choice=stat_sel,
-        c_default_units=c_default_units
+        c_default_units=c_default_units,
+        s_comparison=s_comparison
     )
 
     bound_single_var_diff_plot = pn.bind(
@@ -447,7 +463,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         scenario_list=scen_selector,
         units_choice=unit_selector,
         stat_choice=stat_sel,
-        c_default_units=c_default_units
+        c_default_units=c_default_units,
+        s_comparison=s_comparison
     )
 
     ts_title = pn.pane.Markdown("""
@@ -455,32 +472,32 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
     """)
 
     diffs_ts_title = pn.pane.Markdown("""
-        # Timeseries Plot (Difference from Baseline)
-    """)
+        # Timeseries Plot (Difference from """ + s_comparison + ")"
+                                      )
 
     grouped_title = pn.pane.Markdown("""
         # Time-Aggregated Plot
     """)
 
     grouped__diff_title = pn.pane.Markdown("""
-        # Time-Aggregated Plot (Difference from Baseline)
-    """)
+        # Time-Aggregated Plot (Difference from """ + s_comparison + ")"
+                                           )
 
     exceedance_title = pn.pane.Markdown("""
         # Exceedance Plot 
     """)
 
     exceedance_diff_title = pn.pane.Markdown("""
-        # Exceedance Plot (Difference from Baseline)
-    """)
+        # Exceedance Plot (Difference from """ + s_comparison + ")"
+                                             )
 
     single_var_title = pn.pane.Markdown("""
         # Single Variable Comparison
     """)
 
     single_var_diff_title = pn.pane.Markdown("""
-        # Single Variable Comparison (Difference from Baseline)
-    """)
+        # Single Variable Comparison (Difference from """ + s_comparison + ")"
+                                             )
 
     #Add selectors to header row in template and refresh objects
     header.append(scen_selector)
@@ -557,6 +574,9 @@ col_tracker.append("dss_file")
 
 #Watch the old_new_sel widget and call remove_widget function to update dss_file if a change event occurs
 choice_watcher = old_new_sel.param.watch(update_dss_file_widget, ['value'], onlychanged=True)
+
+# name of the scenario that will be compared to, Baseline as a default
+s_comparison = 'Baseline'
 
 #Add Done Selecting Files button
 done_selecting = pn.widgets.Button(name="Continue", max_width=1000, button_type='primary')

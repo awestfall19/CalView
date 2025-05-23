@@ -221,7 +221,7 @@ def multiprocessing_file_reader(runs, field_list):
 
     return results, field_list_final, c_default_units_all
 
-def file_reader(runs: list[list], field_list):
+def file_reader(runs: list[list], field_list, s_comparison):
     results = {}
     c_default_units_all = pd.Series()
     field_list_final = field_list.copy()
@@ -261,9 +261,12 @@ def file_reader(runs: list[list], field_list):
 
     for i in range(len(runs)):
         append_list.append(results[runs[i][0]])
-        baseline_stack.append(results['Baseline'])
+        baseline_stack.append(results[s_comparison])
     # print(f"Run time for pulling DSS data with multiprocessing = "
     #       f"{(time.time() - start_time)} seconds")
     print(f'Removed {list(set(field_list) ^ set(field_list_final))} from field list.')
+
+    # add s_comparison to c_default_units so we have it stored
+    c_default_units['comparison scenario'] = s_comparison
 
     return append_list, baseline_stack, c_default_units
