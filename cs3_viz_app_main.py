@@ -12,6 +12,7 @@
 from csdss_readlib_fullfile import file_reader, pickler, load_pickles, get_trend_fields
 from cs3_plotlib import plot_values, plot_time_group, plot_time_exceedance, plot_single_var, run_operation
 import panel as pn
+import os
 from os import path
 #TODO
 #Put in code to pickle visualized scenario, make sure it includes user run names
@@ -72,15 +73,17 @@ def update_dss_file_widget(event):
                 name='Select CalSim output DSS file for new run or pickle file for previous run',
                 file_pattern = "*.dss",
                 only_files=True,
-                max_width=1000
+                max_width=900,
+                root_directory=os.path.abspath(os.sep)
             )
         else:
-            o_instructions = pn.pane.Markdown("### Select the pickle files previously created (diffs.pkl, units.pkl, and values.pkl)")
+            o_instructions = pn.pane.Markdown('### <span style="color:red">Select the pickle files previously created (diffs.pkl, units.pkl, and values.pkl)</span>')
             dss_file = pn.widgets.FileSelector(
                 name='Select CalSim output DSS file for new run or pickle file for previous run',
                 file_pattern="*.pkl",
                 only_files=True,
-                max_width=1000
+                max_width=900,
+                root_directory=os.path.abspath(os.sep)
             )
 
         # replace widget and instructions
@@ -99,10 +102,22 @@ def add_run_names_widget(event):
     global run_name_col_tracker
     global field_column
     global field_col_tracker
-    # Access the global variable
-    # check if we have already pressed the button
+
+    # look for old error message and remove
+    if 'error_message' in field_col_tracker:
+        error_index = field_col_tracker.index('error_message')
+        field_column.pop(error_index)
+        field_col_tracker.pop(error_index)
+
+    # check if we have already pressed the button and remove everything if so
     if 'add_field_text' in field_col_tracker:
-        return
+        for _ in range(len(field_col_tracker)):
+            field_col_tracker.pop(0)
+            field_column.pop(0)
+        for _ in range(len(run_name_col_tracker)):
+            run_name_col_tracker.pop(0)
+            run_name_column.pop(0)
+
 
     files = file_picker_column[col_tracker.index("dss_file")].value
 
@@ -112,20 +127,45 @@ def add_run_names_widget(event):
             run_name_instructions = pn.pane.Markdown(""" 
                 # Enter a run name for each file (e.g. Baseline, Alt1, etc.). 
                 
-                ## <span style="color:red">One run must be named Baseline for visualizer to work </span>
+                ## <span style="color:red">One run must be marked as Baseline for visualizer to work </span>
                 """)
             run_name_column.append(run_name_instructions)
             run_name_col_tracker.append("run_name_instructions")
 
             #have user provide run names for each file, new scenario has been selected
             for file in files:
-                dss_run_file_label = pn.pane.Markdown(file)
-                dss_run_name = pn.widgets.TextInput(width=500, placeholder='Enter name for file')
+                dss_run_file_label = pn.pane.Markdown("### File name: " + file)
+
+                baseline_check = pn.widgets.Checkbox(name='Baseline')
+                dss_run_name = pn.widgets.TextInput(width=500, placeholder='Enter name for file', disabled=baseline_check)
 
                 run_name_column.append(dss_run_file_label)
                 run_name_col_tracker.append("dss_run_file_label")
+                run_name_column.append(baseline_check)
+                run_name_col_tracker.append("dss_baseline_checkbox")
                 run_name_column.append(dss_run_name)
                 run_name_col_tracker.append("dss_run_name")
+
+        #using picked files
+        else:
+            # check to make sure all pickle files have been selected
+            b_diffs_flag = False
+            b_values_flag = False
+            b_units_flag = False
+            for file in files:
+                if 'diffs.pkl' in file:
+                    b_diffs_flag = True
+                if 'values.pkl' in file:
+                    b_values_flag = True
+                if 'units.pkl' in file:
+                    b_units_flag = True
+            if not (b_units_flag and b_diffs_flag and b_values_flag):
+                error_message = pn.pane.Markdown("## Make sure all pickle files are selected.")
+                field_column.append(error_message)
+                field_col_tracker.append("error_message")
+                return
+            # no need for fields section, just start pulling the files
+            update_run_names(event)
 
         #Also add optional field add text box
         add_field_instructions = pn.pane.Markdown("""
@@ -164,22 +204,44 @@ def update_run_names(event):
     global field_col_tracker
     global file_picker_display
 
+    # Get selected files
+    files = file_picker_column[col_tracker.index("dss_file")].value  # Access the global variable
+
+    # look for old error message and remove
+    if 'error_message' in field_col_tracker:
+        error_index = field_col_tracker.index('error_message')
+        field_column.pop(error_index)
+        field_col_tracker.pop(error_index)
+
+    #check if we have exactl one file marked as Baseline and if not give an error
+    if sum([run_name_column[i].value for i, x in enumerate(run_name_col_tracker) if x == "dss_baseline_checkbox"]) != 1 and "dss" in files[0].rsplit(".",1)[1]:
+        error_message = pn.pane.Markdown("## Please make sure that exactly one file is marked as Baseline.")
+        field_column.append(error_message)
+        field_col_tracker.append('error_message')
+        return
+
     # row to indicate that the files are being read and it is loading
     loading_row = pn.Row(pn.indicators.LoadingSpinner(
                 value=True, height=30, width=30, color="primary"
-            ), pn.pane.Markdown("## Loading in data. New files will take longer than previously generated visuals."))
+            ), pn.pane.Markdown("""
+            ## Loading in data. New files will take longer than previously generated visuals.
+            
+            ### Once new files have been read in, they will be saved to pickle files that can be used on the previously generated visuals tab for faster startup.
+            """))
     field_column.append(loading_row)
+    field_col_tracker.append('loading_row')
 
-    #Get selected files
-    files = file_picker_column[col_tracker.index("dss_file")].value  # Access the global variable
     #Check if files are dss or pkl (new or old scenario)
     if "dss" in files[0].rsplit(".",1)[1]:
-        #Get indices of dss run names
-        dss_name_indices = [i for i, x in enumerate(run_name_col_tracker) if x=="dss_run_name"]
-        #Get file names
+        # Get indices of dss run names
+        dss_name_indices = [i for i, x in enumerate(run_name_col_tracker) if x == "dss_run_name"]
+        # get the value of the checkbox for each run
+        baseline_indices = [run_name_column[i].value for i, x in enumerate(run_name_col_tracker) if x == "dss_baseline_checkbox"]
+
+        # Get file names
         files = file_picker_column[col_tracker.index("dss_file")].value
 
-        #Get default fields and any added ones
+        # Get default fields and any added ones
         l_tr_fields = get_trend_fields()
         add_field_list= field_column[1].value.split(",")
         field_list = l_tr_fields + add_field_list
@@ -192,7 +254,11 @@ def update_run_names(event):
             #               ["Description_2", ("File_2.dss")],
             #          ...  ["Description_n", ("File_n.dss")]]
             # The names can be anything though, e.g. ["Alt2v1", Alt2v1_VAs.dss"] but must contain one called Baseline
-            runs.append([run_name_column[run_index].value, (files[file_index])])
+            # find where the box is checked for Baseline and set that to be called Baseline
+            if baseline_indices[file_index]:
+                runs.append(['Baseline', (files[file_index])])
+            else:
+                runs.append([run_name_column[run_index].value, (files[file_index])])
         print(runs)
         append_list, baseline_stack, c_default_units = file_reader(runs, field_list)
         pickler(append_list, baseline_stack, c_default_units)
@@ -295,8 +361,12 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
 
     # 20241223: Create different dataframes for each function call
     # Trying to fix non-independent plots issue
-    df_all_data_ts = df_all_data.copy(deep=True)
-    df_all_data_ts_diffs = df_diffs.copy(deep=True)
+    # df_all_data_ts = df_all_data.copy(deep=True)
+    # df_all_data_ts_diffs = df_diffs.copy(deep=True)
+
+    # remove Baseline from the differences dataframe as all values are zero
+    df_diffs = df_diffs[df_diffs.Scenario != 'Baseline']
+
     # Okay, so separate dfs isn't cutting it.
     # Try turning off y-lim
 
@@ -305,7 +375,7 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         scenario_list=scen_selector,
         var_list=var_selector,
         unit_choice=unit_selector,
-        df_all=df_all_data_ts,
+        df_all=df_all_data,
         c_default_units_all=c_default_units
     )
 
@@ -314,7 +384,7 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         scenario_list=scen_selector,
         var_list=var_selector,
         unit_choice=unit_selector,
-        df_all=df_all_data_ts_diffs,
+        df_all=df_diffs,
         c_default_units_all=c_default_units
     )
 
@@ -360,7 +430,7 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
 
     bound_single_var_plot = pn.bind(
         plot_single_var,
-        df=df_all_data,
+        df_all=df_all_data,
         period_choice=period_selector,
         variable=single_var_selector,
         scenario_list=scen_selector,
@@ -371,7 +441,7 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
 
     bound_single_var_diff_plot = pn.bind(
         plot_single_var,
-        df=df_diffs,
+        df_all=df_diffs,
         period_choice=period_selector,
         variable=single_var_selector,
         scenario_list=scen_selector,
@@ -430,8 +500,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
     grouped_plots.append(pn.Column(grouped_title,bound_plot_grouped))
     grouped_plots.append(pn.Column(grouped__diff_title,bound_plot_grouped_diff))
 
-    exceedance_plots.append(pn.Column(exceedance_title,bound_plot_exceedance))
-    exceedance_plots.append(pn.Column(exceedance_diff_title,bound_plot_diffs_exceedance))
+    exceedance_plots.append(pn.Column(exceedance_title, bound_plot_exceedance))
+    exceedance_plots.append(pn.Column(exceedance_diff_title, bound_plot_diffs_exceedance))
 
     tabs = pn.Tabs(
         ('Single Variable', single_var_plots),
@@ -452,29 +522,28 @@ make_archive = False
 ###### File Picker Tab code ##################
 #Title for file picker tab
 file_picker_title = pn.pane.Markdown("""
-    # Select Operation
+    # Select Files
 """)
 
 #Create radio button widget to select running with old or new scenario
 old_new_sel = pn.widgets.RadioButtonGroup(
     #name='',
-    value = 'Previously generated visuals',
+    value="New CalSim outputs",
     button_style='outline',
     button_type='primary',
-    options=["Previously generated visuals", "New CalSim outputs"],
+    options=["New CalSim outputs", "Previously generated visuals"],
     max_width=1000
 )
 
 #Create file selector widget
+o_instructions = pn.pane.Markdown("### Select the DSS files to be read in.")
 dss_file = pn.widgets.FileSelector(
-    name = 'Select CalSim output DSS file for new run or pickle file for previous run',
-    file_pattern = "*.pkl",
-    only_files = True,
-    max_width=1000,
-    align='center'
+    name='Select CalSim output DSS file for new run or pickle file for previous run',
+    file_pattern = "*.dss",
+    only_files=True,
+    max_width=900,
+    root_directory=os.path.abspath(os.sep)
 )
-
-o_instructions = pn.pane.Markdown("### Select the pickle files previously created (diffs.pkl, units.pkl, and values.pkl).")
 
 #Add all widgets to file_picker_column
 file_picker_column.append(file_picker_title)
@@ -500,7 +569,7 @@ file_picker_column.append(done_selecting)
 col_tracker.append("done_selecting")
 
 # Set up the initial layout
-file_picker_display = pn.Row(file_picker_column, pn.Column(run_name_column, field_column), margin=25)
+file_picker_display = pn.Row(file_picker_column, pn.Column(run_name_column, field_column), margin=20)
 
 template.main.append(file_picker_display)
 
