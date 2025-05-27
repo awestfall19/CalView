@@ -24,7 +24,7 @@ def get_trend_fields ():
     for line in lines:
         for field in line.split(','):
             field = field.strip(' ')
-            field = field.strip('\n')
+            field = field.strip('\n').upper()
             l_tr_fields.append(field)
     l_tr_fields[:] = [field for field in l_tr_fields if field != '']
 

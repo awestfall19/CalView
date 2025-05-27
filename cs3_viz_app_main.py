@@ -245,7 +245,7 @@ def update_run_names(event):
 
         # Get default fields and any added ones
         l_tr_fields = get_trend_fields()
-        add_field_list= field_column[1].value.split(",")
+        add_field_list= [field.upper() for field in field_column[1].value.split(",")]
         field_list = l_tr_fields + add_field_list
 
         runs = []
@@ -310,7 +310,7 @@ def create_plot_title(s_title, s_comparison, s_period, s_stat=''):
     """
     c_period_code_to_name = {"DY": "January-December", "WY": "October-September", "CY": "March-February",
                              1: "January", 2: "February", 3: "March", 4: "April",
-                             5: "May", "June": 6, 7: "July", 8: "August",
+                             5: "May", 6: "June", 7: "July", 8: "August",
                              9: "September", 10: "October", 11: "November", 12: "December"}
     if s_stat:
         s_final_title = "# " + s_stat + ' Value ' + s_title
