@@ -1,80 +1,80 @@
-s_folsm
-s_shsta
-s_trnty
-s_sluis_cvp
-s_sluis_swp
-s_orovl
-s_mlrtn
-s_melon
-cvprulecv
-swprulecv
-c_caa003
-c_caa003_swp
-c_caa003_cvp
-c_dmc003
-c_omr014
-c_omr014_lbound
-ndoi
-ndoi_min
-ndoi_add
-ndoi_add_ann
-ndoi_add_cvp
-ndoi_add_swp
-c_sac000
-x2_prv
-MRDO_finaldv
-c_kswck
-c_kswck_add
-c_kswck_mif
-c_ntoma
-c_ntoma_add
-c_ntoma_mif
-c_lwstn
-c_lwstn_add
-c_lwstn_mif
-c_sac120
-c_sac120_add
-c_sac120_mif
-c_ftr059_add
-c_ftr003_add
-c_ftr039_add
-c_sac017_add
-c_sjr070
-c_sjr053b
-c_sac041
-d_lwstn_cct011
-del_cvp_pag_n
-del_cvp_pag_s
-del_cvp_pex_s
-del_cvp_pls_s
-del_cvp_pmi_n
-del_cvp_pmi_s
-del_cvp_prf_n
-del_cvp_prf_s
-del_cvp_psc_n
-del_tot_psc_n
-del_cvp_total_n
-del_cvp_total_s
-PERDV_CVPAG_S
-PERDV_CVPAG_SYS
-PERDV_CVPMI_S
-PERDV_CVPMI_SYS
-PERDV_CVPSC_SYS
-short_cvp_pag_n
-short_cvp_pag_s
-short_cvp_pex_s
-short_cvp_pls_s
-short_cvp_pmi_n
-short_cvp_pmi_s
-short_cvp_prf_n
-short_cvp_prf_s
-short_cvp_psc_n
-short_cvp_tot_n
-short_cvp_tot_s
-swp_ta_total
-swp_co_total
-swp_in_total
-short_swp_tot_s
-short_swp_tot_n
-wyt_sac_
-wyt_sjr_
+s_folsm	Folsom Storage
+s_shsta	Shasta Storage
+s_trnty	Trinity Storage
+s_sluis_cvp	CVP San Luis Storage
+s_sluis_swp	SWP San Luis Storage
+s_orovl	Oroville Storage
+s_mlrtn	Millerton Storage
+s_melon	New Melones Storage
+cvprulecv	CVP San Luis Rule Curve
+swprulecv	SWP San Luis Rule Curve
+c_caa003	Banks Export
+c_caa003_swp	Banks SWP Export
+c_caa003_cvp	Banks CVP Export
+c_dmc003	Jones Export
+c_omr014	OMR Index
+c_omr014_lbound	OMR Index Limit
+ndoi	Net Delta Outflow Index
+ndoi_min	NDOI Minimum Met
+ndoi_add	NDOI Abv Req't - Total
+ndoi_add_ann	NDOI for WQ
+ndoi_add_cvp	NDOI - CVP share of Excess
+ndoi_add_swp	NDOI - SWP share of Excess
+c_sac000	Sac River at SJR Confluence
+x2_prv	X2 Position (prev month)
+MRDO_finaldv	MRDO requirement
+c_kswck	Keswick release
+c_kswck_add	Keswick flow abv minimum
+c_kswck_mif	Keswick flow to meet minimum
+c_ntoma	Nimbus release
+c_ntoma_add	Nimbus flow abv minimum
+c_ntoma_mif	Nimbus flow to meet minimum
+c_lwstn	Lewiston release
+c_lwstn_add	Lewiston flow above minimum
+c_lwstn_mif	Lewiston flow to meet minimum
+c_sac120	Wilkins Slough flow
+c_sac120_add	Wilkins Slough flow abv minimum
+c_sac120_mif	Wilkins Slough flow to meet minimum
+c_ftr059_add	Feather R blw Thermalito flow abv minimum
+c_ftr003_add	Feather R at Mouth flow abv minimum
+c_ftr039_add	Feather R blw Sunset flow abv minimum
+c_sac017_add	Rio Vista flow abv minimum
+c_sjr070	San Joaquin River at Vernalis
+c_sjr053b	Head of Old River
+c_sac041	Sac River at Hood
+d_lwstn_cct011	Lewiston Diversion to Clear Creek Tunnel
+del_cvp_pag_n	CVP Ag Service Delivery NOD
+del_cvp_pag_s	CVP Ag Service Delivery SOD
+del_cvp_pex_s	CVP Exchange Contractor Delivery
+del_cvp_pls_s	CVP SOD Losses
+del_cvp_pmi_n	CVP MI Service Delivery NOD
+del_cvp_pmi_s	CVP MI Service Delivery SOD
+del_cvp_prf_n	CVP Refuge Delivery NOD
+del_cvp_prf_s	CVP Refuge Delivery SOD
+del_cvp_psc_n	CVP Settlement Contractor Delivery
+del_tot_psc_n	Total Settlement Contractor Delivery
+del_cvp_total_n	CVP Total NOD Delivery
+del_cvp_total_s	CVP Total SOD Delivery
+PERDV_CVPAG_S	CVP SOD Ag Allocation
+PERDV_CVPAG_SYS	CVP NOD Ag Allocation
+PERDV_CVPMI_S	CVP SOD MI Allocation
+PERDV_CVPMI_SYS	CVP NOD MI Allocation
+PERDV_CVPSC_SYS	CVP SRSC Allocation
+short_cvp_pag_n	CVP Ag Service Shortage NOD
+short_cvp_pag_s	CVP Ag Service Shortage SOD
+short_cvp_pex_s	CVP Exchange Contractor Shortage
+short_cvp_pls_s	CVP SOD Losses
+short_cvp_pmi_n	CVP MI Service Shortage NOD
+short_cvp_pmi_s	CVP MI Service Shortage SOD
+short_cvp_prf_n	CVP Refuge Shortage NOD
+short_cvp_prf_s	CVP Refuge Shortage SOD
+short_cvp_psc_n	CVP Settlement Contractor Shortage
+short_cvp_tot_n	CVP Total NOD Shortage
+short_cvp_tot_s	CVP Total SOD Shortage
+swp_ta_total	SWP Table A (Firm) Delivery
+swp_co_total	SWP Article 56 Delivery
+swp_in_total	SWP Article 21 Delivery
+short_swp_tot_s	SWP SOD Delivery Shortage
+short_swp_tot_n	SWP NOD Delivery Shortage
+wyt_sac_	Sac Index Water Year Type
+wyt_sjr_	SJR Index Water Year Type

@@ -78,7 +78,7 @@ def update_dss_file_widget(event):
                 root_directory=os.path.abspath(os.sep)
             )
         else:
-            o_instructions = pn.pane.Markdown('### <span style="color:red">Select the pickle files previously created (diffs.pkl, units.pkl, and values.pkl)</span>')
+            o_instructions = pn.pane.Markdown('### <span style="color:red">Select the pickle files previously created (diffs.pkl, units.pkl, values.pkl, and fields.pkl)</span>')
             dss_file = pn.widgets.FileSelector(
                 name='Select CalSim output DSS file for new run or pickle file for previous run',
                 file_pattern="*.pkl",
@@ -153,6 +153,7 @@ def add_run_names_widget(event):
             b_diffs_flag = False
             b_values_flag = False
             b_units_flag = False
+            b_fields_flag = False
             for file in files:
                 if 'diffs.pkl' in file:
                     b_diffs_flag = True
@@ -160,7 +161,9 @@ def add_run_names_widget(event):
                     b_values_flag = True
                 if 'units.pkl' in file:
                     b_units_flag = True
-            if not (b_units_flag and b_diffs_flag and b_values_flag):
+                if 'fields.pkl' in file:
+                    b_fields_flag = True
+            if not (b_units_flag and b_diffs_flag and b_values_flag and b_fields_flag):
                 error_message = pn.pane.Markdown("## Make sure all pickle files are selected.")
                 field_column.append(error_message)
                 field_col_tracker.append("error_message")
@@ -172,12 +175,23 @@ def add_run_names_widget(event):
         add_field_instructions = pn.pane.Markdown("""
         # OPTIONAL additional fields: 
         
-        ## Add additional fields to visualize that are not present in the default list. Separate with commas, no spaces.
+        ## Add additional fields to visualize that are not present in the default list. 
+        
+        ### Each line is a field with the variable name followed by a space or tab followed by the description of the variable. This is the default format if copied and pasted from an excel sheet.
+        
+        ### Example:
+        
+        S_FOLSM Folsom Storage
+        
+        S_SHSTA Shasta Storage
+        
+        ...
+        
         """)
         field_column.append(add_field_instructions)
         field_col_tracker.append("add_field_instructions")
 
-        add_field_text = pn.widgets.TextInput(width=500)
+        add_field_text = pn.widgets.TextAreaInput(name='', placeholder='S_FOLSM\tFolsom Storage\nS_SHSTA\tShasta Storage\n...', auto_grow=True, width=500)
 
         field_column.append(add_field_text)
         field_col_tracker.append("add_field_text")
@@ -244,9 +258,28 @@ def update_run_names(event):
         files = file_picker_column[col_tracker.index("dss_file")].value
 
         # Get default fields and any added ones
-        l_tr_fields = get_trend_fields()
-        add_field_list= [field.upper() for field in field_column[1].value.split(",")]
-        field_list = l_tr_fields + add_field_list
+        # pulling from TR_fields.txt
+        c_tr_fields = get_trend_fields()
+
+        # to hold the ones entered in the optional field
+        c_new_fields = {}
+
+        for line in field_column[1].value.split('\n'):
+            line = line.strip()
+            new_field = line.split(maxsplit=1)
+            if len(new_field) != 2:
+                field = new_field[0]
+                field = field.strip(' ').upper()
+                c_new_fields[field] = field
+            else:
+                field, description = new_field
+
+                field = field.strip(' ').upper()
+                description = description.strip('\n')
+                description = description + ' (' + field + ')'
+                c_new_fields[field] = description
+
+        c_field_list = c_tr_fields | c_new_fields
 
         runs = []
 
@@ -264,12 +297,12 @@ def update_run_names(event):
 
             runs.append([run_name_column[run_index].value, (files[file_index])])
         print(runs)
-        append_list, baseline_stack, c_default_units = file_reader(runs, field_list, s_comparison)
-        pickler(append_list, baseline_stack, c_default_units)
+        append_list, baseline_stack, c_default_units, c_field_list = file_reader(runs, c_field_list, s_comparison)
+        pickler(append_list, baseline_stack, c_default_units, c_field_list)
 
         # This runs no matter what. The pickle files allow you to come back and
         # pull the same variables without waiting for the file reads to complete
-        df_all_data, df_diffs, c_default_units = load_pickles()
+        df_all_data, df_diffs, c_default_units, c_field_list = load_pickles()
 
         # Write to Excel.
         try:
@@ -282,14 +315,13 @@ def update_run_names(event):
 
     #Load pickles from previous run
     else:
-        df_all_data, df_diffs, c_default_units = load_pickles()
+        df_all_data, df_diffs, c_default_units, c_field_list = load_pickles()
 
     # need to pull comparison scenario from un pickled files
     s_comparison = c_default_units['comparison scenario']
 
     #Now that pickles have been created/loaded, move forward with initiating other tabs
     scenario_names = df_all_data['Scenario'].unique().tolist()
-    var_names = df_all_data.columns.to_list()[6:]
 
     # removing loading before adding tabs
     loading_index = field_col_tracker.index('loading_row')
@@ -298,7 +330,7 @@ def update_run_names(event):
     field_column.param.trigger("objects")
 
     #Fill in widgets for other tabs
-    create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_diffs)
+    create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, df_diffs)
 
     # once we have the widgets and graphs, remove the file picker
     for _ in range(len(file_picker_display)):
@@ -321,7 +353,7 @@ def create_plot_title(s_title, s_comparison, s_period, s_stat=''):
     if s_period:
         s_final_title += " (" + c_period_code_to_name[s_period] + ")"
     return pn.pane.Markdown(s_final_title)
-def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_diffs):
+def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, df_diffs):
     global single_var_plots
     global grouped_plots
     global exceedance_plots
@@ -357,11 +389,14 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         width=200
     )
 
+    # for the field names we need a diction of {description: field}
+    c_description_to_field = {description: field for field, description in c_field_list.items()}
+
     # Select the variables
     var_selector = pn.widgets.MultiChoice(
         name='Variable selector',
-        options=var_names,
-        value=[var_names[0]],
+        options=c_description_to_field,
+        value=[list(c_description_to_field.values())[0]],
         width=400
     )
 
@@ -389,7 +424,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         unit_choice=unit_selector,
         df_all=df_all_data,
         c_default_units_all=c_default_units,
-        s_comparison=s_comparison
+        s_comparison=s_comparison,
+        c_field_list=c_field_list
     )
 
     bound_plot_diffs_ts = pn.bind(
@@ -399,7 +435,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         unit_choice=unit_selector,
         df_all=df_diffs,
         c_default_units_all=c_default_units,
-        s_comparison=s_comparison
+        s_comparison=s_comparison,
+        c_field_list=c_field_list
     )
 
     bound_plot_grouped = pn.bind(
@@ -410,7 +447,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         df_all=df_all_data,
         c_default_units_all=c_default_units,
         period_choice=period_selector,
-        s_comparison=s_comparison
+        s_comparison=s_comparison,
+        c_field_list=c_field_list
     )
 
     bound_plot_grouped_diff = pn.bind(
@@ -421,7 +459,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         df_all=df_diffs,
         c_default_units_all=c_default_units,
         period_choice=period_selector,
-        s_comparison=s_comparison
+        s_comparison=s_comparison,
+        c_field_list=c_field_list
     )
 
     bound_plot_exceedance = pn.bind(
@@ -432,7 +471,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         df_all=df_all_data,
         c_default_units_all=c_default_units,
         period_choice=period_selector,
-        s_comparison=s_comparison
+        s_comparison=s_comparison,
+        c_field_list=c_field_list
     )
 
     bound_plot_diffs_exceedance = pn.bind(
@@ -443,7 +483,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         df_all=df_diffs,
         c_default_units_all=c_default_units,
         period_choice=period_selector,
-        s_comparison=s_comparison
+        s_comparison=s_comparison,
+        c_field_list=c_field_list
     )
 
     bound_single_var_plot = pn.bind(
@@ -455,7 +496,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         units_choice=unit_selector,
         stat_choice=stat_sel,
         c_default_units=c_default_units,
-        s_comparison=s_comparison
+        s_comparison=s_comparison,
+        c_field_list=c_field_list
     )
 
     bound_single_var_diff_plot = pn.bind(
@@ -467,7 +509,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         units_choice=unit_selector,
         stat_choice=stat_sel,
         c_default_units=c_default_units,
-        s_comparison=s_comparison
+        s_comparison=s_comparison,
+        c_field_list=c_field_list
     )
 
 

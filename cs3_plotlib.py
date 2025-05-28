@@ -10,11 +10,16 @@ from csdss_readlib_fullfile import file_reader, pickler, load_pickles, get_trend
 def get_vars_list(ls_vars, s_default):
     return [string for string in ls_vars if s_default in string]
 
-def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units_all, s_comparison):
+def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units_all, s_comparison, c_field_list):
 
     df_all_plot = df_all.copy(deep=True)
     df_all_plot.reset_index(inplace=True, drop=True)
     durations = [date.day for date in df_all_plot['Date']]
+
+    # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot
+    if s_comparison in scenario_list:
+        scenario_list.remove(s_comparison)
+        scenario_list.append(s_comparison)
 
     # check if comparison scen is in the data frame
     # if it's not, then we are creating the differences plot and don't want to include comparison scen
@@ -48,6 +53,11 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units_al
             df_all_plot[var] = \
                 np.multiply(df_all_plot[var], taf_cfs)
 
+
+    # switch from variable name to description
+    df_all_plot.rename(c_field_list, axis='columns', inplace=True)
+    var_list = [c_field_list[var] for var in var_list]
+
     # Sortable, filter to target scenarios and vars
     df_wide = pd.DataFrame(df_all_plot['Date'].unique(), columns=['Date'])
 
@@ -73,7 +83,8 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units_al
             ylabel=unit_choice,
             xlabel='Date',
             grid=True,
-            min_height=600
+            min_height=600,
+            label='test'
         ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, index=False, max_height=500))
 
     else:
@@ -86,11 +97,16 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units_al
         ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, index=False, max_height=500))
 
 def plot_time_group(scenario_list, var_list, unit_choice, df_all,
-                    c_default_units_all, period_choice, s_comparison):
+                    c_default_units_all, period_choice, s_comparison, c_field_list):
 
     df_all_plot = df_all.copy(deep=True)
     df_all_plot.reset_index(inplace=True, drop=True)
     durations = [date.day for date in df_all_plot['Date']]
+
+    # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot
+    if s_comparison in scenario_list:
+        scenario_list.remove(s_comparison)
+        scenario_list.append(s_comparison)
 
     # check if comparison scen is in the data frame
     # if its not, then we are creating the differences plot and dont want to include comparison scen
@@ -123,6 +139,10 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         elif original_unit == 'TAF':
             df_all_plot[var] = \
                 np.multiply(df_all_plot[var], taf_cfs)
+
+    # switch from variable name to description
+    df_all_plot.rename(c_field_list, axis='columns', inplace=True)
+    var_list = [c_field_list[var] for var in var_list]
 
     # Sortable, filter to target scenarios and vars
     df_wide = pd.DataFrame(df_all_plot['Date'].unique(), columns=['Date'])
@@ -204,11 +224,16 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 
 
 def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
-                         c_default_units_all, period_choice, s_comparison):
+                         c_default_units_all, period_choice, s_comparison, c_field_list):
 
     df_all_plot = df_all.copy(deep=True)
     df_all_plot.reset_index(inplace=True, drop=True)
     durations = [date.day for date in df_all_plot['Date']]
+
+    # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot
+    if s_comparison in scenario_list:
+        scenario_list.remove(s_comparison)
+        scenario_list.append(s_comparison)
 
     # check if comparison scen is in the data frame
     # if it's not, then we are creating the differences plot and don't want to include comparison scen
@@ -240,6 +265,10 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         elif original_unit == 'TAF':
             df_all_plot[var] = \
                 np.multiply(df_all_plot[var], taf_cfs)
+
+    # switch from variable name to description
+    df_all_plot.rename(c_field_list, axis='columns', inplace=True)
+    var_list = [c_field_list[var] for var in var_list]
 
     # Sortable, filter to target scenarios and vars
     df_wide = pd.DataFrame(df_all_plot['Date'].unique(), columns=['Date'])
@@ -371,11 +400,16 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
             ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
 
 def plot_single_var(df_all, period_choice, var_list, scenario_list,
-                    units_choice, stat_choice, c_default_units, s_comparison):
+                    units_choice, stat_choice, c_default_units, s_comparison, c_field_list):
 
     df_all_plot = df_all.copy(deep=True)
     df_all_plot.reset_index(inplace=True, drop=True)
     durations = [date.day for date in df_all['Date']]
+
+    # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot
+    if s_comparison in scenario_list:
+        scenario_list.remove(s_comparison)
+        scenario_list.append(s_comparison)
 
     # check if comparison scen is in the data frame
     # if it's not, then we are creating the differences plot and dont want to include comparison scen
@@ -410,6 +444,10 @@ def plot_single_var(df_all, period_choice, var_list, scenario_list,
         elif original_unit == 'TAF':
             df_all_plot[var] = \
                 np.multiply(df_all_plot[var], taf_cfs)
+
+    # switch from variable name to description
+    df_all_plot.rename(c_field_list, axis='columns', inplace=True)
+    var_list = [c_field_list[var] for var in var_list]
 
     # Sortable, filter to target scenarios and vars
     df_wide = pd.DataFrame(df_all_plot['Date'].unique(), columns=['Date'])
