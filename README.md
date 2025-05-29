@@ -6,4 +6,4 @@ Place output of the CalSim_DSS_Reader in the Visualizer Folder before running th
 python cs3_viz_app_main.py
 
 # To compile executable 
-pyinstaller --clean --additional-hooks-dir=. --add-data TR_fields.txt:. --add-data usbr_logo.jpg:. -F cs3_viz_app_main.py
+pyinstaller cs3_viz_app_main.spec
