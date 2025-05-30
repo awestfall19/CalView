@@ -51,10 +51,15 @@ def pickler(append_list, baseline_stack, c_default_units, c_field_list):
     df_baseline_stack.index.name = "Index"
 
     # Calc diffs for the alts vs baseline
+    # columns that shouldn't be subtracted
+    li_wyt_cols = [index for index, colname in enumerate(df_all_data) if len(colname) >= 3 and colname[:3] == 'WYT']
+    li_fixed_cols_indices = li_wyt_cols + list(range(0, num_fixed))
+    df_fixed_cols = df_all_data.iloc[:, li_fixed_cols_indices]
 
-    df_fixed_cols = df_all_data.iloc[:, 0:num_fixed]
-    df_all_data_numeric = df_all_data.iloc[:, num_fixed::]
-    df_baseline_numeric = df_baseline_stack.iloc[:, num_fixed::]
+    li_numeric_col_indices = [i for i in range(len(df_all_data.columns)) if i not in li_fixed_cols_indices]
+    df_all_data_numeric = df_all_data.iloc[:, li_numeric_col_indices]
+
+    df_baseline_numeric = df_baseline_stack.iloc[:, li_numeric_col_indices]
     df_diff_numeric = df_all_data_numeric.subtract(df_baseline_numeric)
     df_diffs = pd.concat([df_fixed_cols, df_diff_numeric], axis=1)
 
