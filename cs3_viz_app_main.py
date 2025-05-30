@@ -10,17 +10,21 @@
 
 # Import data handling functions from our local module
 from csdss_readlib_fullfile import file_reader, pickler, load_pickles, get_trend_fields
-from cs3_plotlib import plot_values, plot_time_group, plot_time_exceedance, plot_single_var, run_operation
+from cs3_plotlib import plot_values, plot_time_group, plot_time_exceedance, plot_bars, run_operation
 import panel as pn
 import os
 from os import path
-import warnings
+import holoviews as hv
+
 #TODO
 #Put in code to pickle visualized scenario, make sure it includes user run names
 
 # NOTE: need to use name/main for Pool to work outside of script
-warnings.filterwarnings('ignore')
 pn.extension(sizing_mode='stretch_width')
+
+# change default colors to first go through Reclamation colors and then original default colors for line plots
+hv.opts.defaults(hv.opts.Curve(color=hv.Cycle(['#003E51', '#007396', '#C69214', '#FF671F', '#215732', '#4C12A1', '#9A3324'] + hv.Cycle.default_cycles["default_colors"])))
+hv.opts.defaults(hv.opts.Scatter(color=hv.Cycle(['#003E51', '#007396', '#C69214', '#FF671F', '#215732', '#4C12A1', '#9A3324'] + hv.Cycle.default_cycles["default_colors"])))
 
 #Visualizer formatting code
 
@@ -78,7 +82,7 @@ def update_dss_file_widget(event):
                 root_directory=os.path.abspath(os.sep)
             )
         else:
-            o_instructions = pn.pane.Markdown('### <span style="color:red">Select the pickle files previously created (diffs.pkl, units.pkl, and values.pkl)</span>')
+            o_instructions = pn.pane.Markdown('### <span style="color:red">Select the pickle files previously created (diffs.pkl, units.pkl, values.pkl, and fields.pkl)</span>')
             dss_file = pn.widgets.FileSelector(
                 name='Select CalSim output DSS file for new run or pickle file for previous run',
                 file_pattern="*.pkl",
@@ -153,6 +157,7 @@ def add_run_names_widget(event):
             b_diffs_flag = False
             b_values_flag = False
             b_units_flag = False
+            b_fields_flag = False
             for file in files:
                 if 'diffs.pkl' in file:
                     b_diffs_flag = True
@@ -160,7 +165,9 @@ def add_run_names_widget(event):
                     b_values_flag = True
                 if 'units.pkl' in file:
                     b_units_flag = True
-            if not (b_units_flag and b_diffs_flag and b_values_flag):
+                if 'fields.pkl' in file:
+                    b_fields_flag = True
+            if not (b_units_flag and b_diffs_flag and b_values_flag and b_fields_flag):
                 error_message = pn.pane.Markdown("## Make sure all pickle files are selected.")
                 field_column.append(error_message)
                 field_col_tracker.append("error_message")
@@ -172,12 +179,23 @@ def add_run_names_widget(event):
         add_field_instructions = pn.pane.Markdown("""
         # OPTIONAL additional fields: 
         
-        ## Add additional fields to visualize that are not present in the default list. Separate with commas, no spaces.
+        ## Add additional fields to visualize that are not present in the default list. 
+        
+        ### Each line is a field with the variable name followed by a space or tab followed by the description of the variable. This is the default format if copied and pasted from an excel sheet.
+        
+        ### Example:
+        
+        S_FOLSM Folsom Storage
+        
+        S_SHSTA Shasta Storage
+        
+        ...
+        
         """)
         field_column.append(add_field_instructions)
         field_col_tracker.append("add_field_instructions")
 
-        add_field_text = pn.widgets.TextInput(width=500)
+        add_field_text = pn.widgets.TextAreaInput(name='', placeholder='S_FOLSM\tFolsom Storage\nS_SHSTA\tShasta Storage\n...', auto_grow=True, width=500)
 
         field_column.append(add_field_text)
         field_col_tracker.append("add_field_text")
@@ -244,9 +262,28 @@ def update_run_names(event):
         files = file_picker_column[col_tracker.index("dss_file")].value
 
         # Get default fields and any added ones
-        l_tr_fields = get_trend_fields()
-        add_field_list= [field.upper() for field in field_column[1].value.split(",")]
-        field_list = l_tr_fields + add_field_list
+        # pulling from TR_fields.txt
+        c_tr_fields = get_trend_fields()
+
+        # to hold the ones entered in the optional field
+        c_new_fields = {}
+        if field_column[1].value != '':
+            for line in field_column[1].value.split('\n'):
+                line = line.strip()
+                new_field = line.split(maxsplit=1)
+                if len(new_field) != 2:
+                    field = new_field[0]
+                    field = field.strip(' ').upper()
+                    c_new_fields[field] = field
+                else:
+                    field, description = new_field
+
+                    field = field.strip(' ').upper()
+                    description = description.strip('\n')
+                    description = description + ' (' + field + ')'
+                    c_new_fields[field] = description
+
+        c_field_list = c_tr_fields | c_new_fields
 
         runs = []
 
@@ -264,12 +301,12 @@ def update_run_names(event):
 
             runs.append([run_name_column[run_index].value, (files[file_index])])
         print(runs)
-        append_list, baseline_stack, c_default_units = file_reader(runs, field_list, s_comparison)
-        pickler(append_list, baseline_stack, c_default_units)
+        append_list, baseline_stack, c_default_units, c_field_list = file_reader(runs, c_field_list, s_comparison)
+        pickler(append_list, baseline_stack, c_default_units, c_field_list)
 
         # This runs no matter what. The pickle files allow you to come back and
         # pull the same variables without waiting for the file reads to complete
-        df_all_data, df_diffs, c_default_units = load_pickles()
+        df_all_data, df_diffs, c_default_units, c_field_list = load_pickles()
 
         # Write to Excel.
         try:
@@ -282,14 +319,13 @@ def update_run_names(event):
 
     #Load pickles from previous run
     else:
-        df_all_data, df_diffs, c_default_units = load_pickles()
+        df_all_data, df_diffs, c_default_units, c_field_list = load_pickles()
 
     # need to pull comparison scenario from un pickled files
     s_comparison = c_default_units['comparison scenario']
 
     #Now that pickles have been created/loaded, move forward with initiating other tabs
     scenario_names = df_all_data['Scenario'].unique().tolist()
-    var_names = df_all_data.columns.to_list()[6:]
 
     # removing loading before adding tabs
     loading_index = field_col_tracker.index('loading_row')
@@ -298,30 +334,73 @@ def update_run_names(event):
     field_column.param.trigger("objects")
 
     #Fill in widgets for other tabs
-    create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_diffs)
+    create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, df_diffs)
 
     # once we have the widgets and graphs, remove the file picker
     for _ in range(len(file_picker_display)):
         file_picker_display.pop(0)
 
-def create_plot_title(s_title, s_comparison, s_period, s_stat=''):
+def create_plot_title(s_title, s_comparison='', s_period='', s_stat=''):
     """
     To create the titles for the plots that change when values are updated
     """
     c_period_code_to_name = {"DY": "January-December", "WY": "October-September", "CY": "March-February",
                              1: "January", 2: "February", 3: "March", 4: "April",
                              5: "May", 6: "June", 7: "July", 8: "August",
-                             9: "September", 10: "October", 11: "November", 12: "December"}
+                             9: "September", 10: "October", 11: "November", 12: "December"
+                             }
+    s_final_title = "# "
     if s_stat:
-        s_final_title = "# " + s_stat + ' Value ' + s_title
+         s_final_title += s_stat + ' Value ' + s_title
     else:
-        s_final_title = "# " + s_title
+        s_final_title += s_title
     if s_comparison:
         s_final_title += " (Difference from " + s_comparison + ")"
     if s_period:
-        s_final_title += " (" + c_period_code_to_name[s_period] + ")"
+        if s_period in c_period_code_to_name.keys():
+            s_final_title += " (" + c_period_code_to_name[s_period] + ")"
+        # this is when we are grouping by wyt
+        else:
+            s_final_title += " (Water Year Type)"
     return pn.pane.Markdown(s_final_title)
-def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_diffs):
+
+def hide_show_wyt(event):
+    global header
+
+    # make sure that the header has been populated
+    if len(header) > 2:
+        # check if a WYT is selected
+        if (len(str(event.new)) >= 3) and (event.new[:3] == 'WYT'):
+            # turn on the visibility
+            header[2][1].visible = True
+
+        else:
+            # turn it off
+            header[2][1].visible = False
+    return
+
+
+def update_wyt_names(target, event):
+    if event.new != event.old:
+        if len(str(event.new)) >=3 and event.new[:3] == 'WYT':
+            c_wyt_names = {
+                'WYT_SAC_': {'Wet': 1, 'Above Normal': 2, 'Below Normal': 3, 'Dry': 4, 'Critically Dry': 5},
+                'WYT_SJR_': {'Wet': 1, 'Above Normal': 2, 'Below Normal': 3, 'Dry': 4, 'Critically Dry': 5},
+                'WYT_TRIN_': {'Extremely Wet': 1, 'Wet': 2, 'Normal': 3, 'Dry': 4, 'Critically Dry': 5}
+            }
+            try:
+                target.options = c_wyt_names[event.new]
+            except:
+                target.options = c_wyt_names['WYT_SAC_']
+    return
+
+
+def wyt_period_toggle(target, event):
+    # disable months if the button is toggled
+    target.disabled = event.new
+
+
+def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, df_diffs):
     global single_var_plots
     global grouped_plots
     global exceedance_plots
@@ -332,7 +411,7 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
 
     # Select which alts to examine
     scen_selector = pn.widgets.MultiChoice(
-        name='Scenario selector',
+        name='Scenario Selector',
         options=scenario_names,
         value=scenario_names,
         width=400
@@ -349,24 +428,60 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
     )
 
     period_selector = pn.widgets.Select(
-        name='Period selector',
-        options={"January-December": "DY", "October-September": "WY", "March-February": "CY",
-                 "January": 1, "February": 2, "March": 3, "April": 4,
+        name='Period Selector',
+        groups={'Year': {"January-December": "DY", "October-September": "WY", "March-February": "CY"},
+                'Month': {"January": 1, "February": 2, "March": 3, "April": 4,
                  "May": 5, "June": 6, "July": 7, "August": 8,
                  "September": 9, "October": 10, "November": 11, "December": 12},
-        width=200
+                'Water Year Type': {description: wyt for wyt, description in c_field_list.items() if len(wyt) >=3 and wyt[:3] == 'WYT'}
+                },
+        width=300
     )
 
-    # Select the variables
+    wyt_selector = pn.widgets.CheckButtonGroup(
+        name='Water Year Type',
+        options={'Wet': 1, 'Above Normal': 2, 'Below Normal': 3, 'Dry': 4, 'Critically Dry': 5},
+        button_type='primary',
+        button_style='outline'
+    )
+
+    wyt_period_selector = pn.widgets.CheckButtonGroup(
+        name='WYT Period Selector',
+        options={"January": 1, "February": 2, "March": 3, "April": 4,
+                    "May": 5, "June": 6, "July": 7, "August": 8,
+                   "September": 9, "October": 10, "November": 11, "December": 12
+                   },
+        button_type='primary',
+        button_style='outline'
+    )
+    wyt_period_selector_year = pn.widgets.Toggle(
+        name='Water Year Total',
+        button_type='primary',
+        button_style='outline')
+
+    # to update the visibility when period is changed
+    wyt_watcher = period_selector.param.watch(hide_show_wyt, 'value')
+
+    # to update the names when the period is changed
+    wyt_names_linked = period_selector.link(wyt_selector, callbacks={'value': update_wyt_names})
+
+    wyt_period_linked = wyt_period_selector_year.link(wyt_period_selector, callbacks={'value': wyt_period_toggle})
+
+    period_selector.param.trigger('value')
+
+    # for the field names we need a diction of {description: field}
+    c_description_to_field = {description: field for field, description in c_field_list.items()}
+
+    # Select the variables (no water year types)
     var_selector = pn.widgets.MultiChoice(
-        name='Variable selector',
-        options=var_names,
-        value=[var_names[0]],
+        name='Variable Selector',
+        options={description: field for description, field in c_description_to_field.items() if field[-1] != '_'},
+        value=[list(c_description_to_field.values())[0]],
         width=400
     )
 
     stat_sel = pn.widgets.Select(
-        name='Statistic selector',
+        name='Statistic Selector',
         options=['Average', 'Minimum', 'Maximum'],
         width=400
     )
@@ -389,7 +504,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         unit_choice=unit_selector,
         df_all=df_all_data,
         c_default_units_all=c_default_units,
-        s_comparison=s_comparison
+        s_comparison=s_comparison,
+        c_field_list=c_field_list
     )
 
     bound_plot_diffs_ts = pn.bind(
@@ -399,7 +515,8 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         unit_choice=unit_selector,
         df_all=df_diffs,
         c_default_units_all=c_default_units,
-        s_comparison=s_comparison
+        s_comparison=s_comparison,
+        c_field_list=c_field_list
     )
 
     bound_plot_grouped = pn.bind(
@@ -410,7 +527,11 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         df_all=df_all_data,
         c_default_units_all=c_default_units,
         period_choice=period_selector,
-        s_comparison=s_comparison
+        s_comparison=s_comparison,
+        c_field_list=c_field_list,
+        ls_wyt_selected=wyt_selector,
+        b_wyt_period_year=wyt_period_selector_year,
+        li_wyt_period_months=wyt_period_selector
     )
 
     bound_plot_grouped_diff = pn.bind(
@@ -421,7 +542,11 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         df_all=df_diffs,
         c_default_units_all=c_default_units,
         period_choice=period_selector,
-        s_comparison=s_comparison
+        s_comparison=s_comparison,
+        c_field_list=c_field_list,
+        ls_wyt_selected=wyt_selector,
+        b_wyt_period_year=wyt_period_selector_year,
+        li_wyt_period_months=wyt_period_selector
     )
 
     bound_plot_exceedance = pn.bind(
@@ -432,7 +557,11 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         df_all=df_all_data,
         c_default_units_all=c_default_units,
         period_choice=period_selector,
-        s_comparison=s_comparison
+        s_comparison=s_comparison,
+        c_field_list=c_field_list,
+        ls_wyt_selected=wyt_selector,
+        b_wyt_period_year=wyt_period_selector_year,
+        li_wyt_period_months=wyt_period_selector
     )
 
     bound_plot_diffs_exceedance = pn.bind(
@@ -443,11 +572,15 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         df_all=df_diffs,
         c_default_units_all=c_default_units,
         period_choice=period_selector,
-        s_comparison=s_comparison
+        s_comparison=s_comparison,
+        c_field_list=c_field_list,
+        ls_wyt_selected=wyt_selector,
+        b_wyt_period_year=wyt_period_selector_year,
+        li_wyt_period_months=wyt_period_selector
     )
 
     bound_single_var_plot = pn.bind(
-        plot_single_var,
+        plot_bars,
         df_all=df_all_data,
         period_choice=period_selector,
         var_list=var_selector,
@@ -455,11 +588,15 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         units_choice=unit_selector,
         stat_choice=stat_sel,
         c_default_units=c_default_units,
-        s_comparison=s_comparison
+        s_comparison=s_comparison,
+        c_field_list=c_field_list,
+        ls_wyt_selected=wyt_selector,
+        b_wyt_period_year=wyt_period_selector_year,
+        li_wyt_period_months=wyt_period_selector
     )
 
     bound_single_var_diff_plot = pn.bind(
-        plot_single_var,
+        plot_bars,
         df_all=df_diffs,
         period_choice=period_selector,
         var_list=var_selector,
@@ -467,7 +604,11 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
         units_choice=unit_selector,
         stat_choice=stat_sel,
         c_default_units=c_default_units,
-        s_comparison=s_comparison
+        s_comparison=s_comparison,
+        c_field_list=c_field_list,
+        ls_wyt_selected=wyt_selector,
+        b_wyt_period_year=wyt_period_selector_year,
+        li_wyt_period_months=wyt_period_selector
     )
 
 
@@ -512,7 +653,7 @@ def create_widgets(scenario_names, var_names, df_all_data, c_default_units, df_d
     #Add selectors to header row in template and refresh objects
     header.append(scen_selector)
     header.append(var_selector)
-    header.append(period_selector)
+    header.append(pn.Column(period_selector, pn.Column(wyt_selector, pn.Row(wyt_period_selector_year, wyt_period_selector), visible=False), max_width=300))
     header.append(unit_selector)
     header.param.trigger("objects")
 

@@ -11,8 +11,9 @@ from os import path
 # num_fixed = # of columns that are the same in all cases
 num_fixed = 6
 
-def get_trend_fields ():
-    l_tr_fields: list = []
+def get_trend_fields():
+    # dictionary to hold fields and description in the form {field: description}
+    c_tr_fields = {}
     try:
         # this line is needed for the file to correctly be found once this is bundled into an executable
         s_path_to_fields = path.abspath(path.join(path.dirname(__file__), 'TR_fields.txt'))
@@ -22,15 +23,24 @@ def get_trend_fields ():
         print('Failed to open TR_fields.txt')
 
     for line in lines:
-        for field in line.split(','):
-            field = field.strip(' ')
-            field = field.strip('\n').upper()
-            l_tr_fields.append(field)
-    l_tr_fields[:] = [field for field in l_tr_fields if field != '']
 
-    return l_tr_fields
+        line = line.strip()
+        curr_field = line.split('\t')
+        if len(curr_field) != 2:
+            continue
+        else:
+            field, description = curr_field
+        field = field.strip(' ').upper()
+        description = description.strip('\n')
+        description = description + ' (' + field + ')'
+        c_tr_fields[field] = description
 
-def pickler(append_list, baseline_stack, c_default_units):
+    for field, description in c_tr_fields.items():
+        if field == '':
+            c_tr_fields.pop(field)
+    return c_tr_fields
+
+def pickler(append_list, baseline_stack, c_default_units, c_field_list):
     df_all_data = pd.DataFrame()
     df_all_data = pd.concat(append_list)
     df_all_data.reset_index(drop=True, inplace=True)
@@ -41,10 +51,15 @@ def pickler(append_list, baseline_stack, c_default_units):
     df_baseline_stack.index.name = "Index"
 
     # Calc diffs for the alts vs baseline
+    # columns that shouldn't be subtracted
+    li_wyt_cols = [index for index, colname in enumerate(df_all_data) if len(colname) >= 3 and colname[:3] == 'WYT']
+    li_fixed_cols_indices = li_wyt_cols + list(range(0, num_fixed))
+    df_fixed_cols = df_all_data.iloc[:, li_fixed_cols_indices]
 
-    df_fixed_cols = df_all_data.iloc[:, 0:num_fixed]
-    df_all_data_numeric = df_all_data.iloc[:, num_fixed::]
-    df_baseline_numeric = df_baseline_stack.iloc[:, num_fixed::]
+    li_numeric_col_indices = [i for i in range(len(df_all_data.columns)) if i not in li_fixed_cols_indices]
+    df_all_data_numeric = df_all_data.iloc[:, li_numeric_col_indices]
+
+    df_baseline_numeric = df_baseline_stack.iloc[:, li_numeric_col_indices]
     df_diff_numeric = df_all_data_numeric.subtract(df_baseline_numeric)
     df_diffs = pd.concat([df_fixed_cols, df_diff_numeric], axis=1)
 
@@ -61,6 +76,11 @@ def pickler(append_list, baseline_stack, c_default_units):
     pickle.dump(c_default_units, pickled_units)
     pickled_units.close()
 
+    #pickle field descriptions
+    pickled_fields = open('fields.pkl', 'wb')
+    pickle.dump(c_field_list, pickled_fields)
+    pickled_fields.close()
+
 def load_pickles():
     try:
         load_data = open('values.pkl', 'rb')
@@ -76,14 +96,26 @@ def load_pickles():
     except:
         print("Missing \"diffs.pkl\". Please run pickler")
 
-    load_units = open('units.pkl', 'rb')
-    c_default_units = pickle.load(load_units)
-    load_units.close()
+    try:
+        load_units = open('units.pkl', 'rb')
+        c_default_units = pickle.load(load_units)
+        load_units.close()
+    except:
+        print("Missing \"units.pkl\". Please run pickler")
 
-    return (df_all_data, df_diffs, c_default_units)
+    try:
+        load_fields = open('fields.pkl', 'rb')
+        c_field_list = pickle.load(load_fields)
+        load_fields.close()
+    except:
+        print("Missing \"fields.pkl\". Please run pickler")
+
+    return (df_all_data, df_diffs, c_default_units, c_field_list)
 
 
-def single_file_pull(dss_file, target_ts_list, scenario_name):
+
+
+def single_file_pull(dss_file, c_target_ts_list, scenario_name):
     startDate = "31OCT1921 00:00:00"
     endDate = "30SEP2021 00:00:00"
     startDate_1 = datetime.date(1921, 10, 31)
@@ -106,18 +138,20 @@ def single_file_pull(dss_file, target_ts_list, scenario_name):
     dfPaths = dfPaths.reset_index()
     dfPaths.drop('index', axis=1, inplace=True)
 
-    target_ts_list_final = target_ts_list.copy()
+    c_target_ts_list_final = c_target_ts_list.copy()
     # use our list of variables to search the DSS File. For CS3, b parts are unique
     target_path_list = []
-    for b_part in target_ts_list:
+    for b_part in c_target_ts_list.keys():
+        # make sure it is uppercase
+        b_part_upper = b_part.upper()
         try:
             c_part = dfPaths[dfPaths['B'] == b_part]['C'].iloc[0]
             a_part = dfPaths[dfPaths['B'] == b_part]['A'].iloc[0]
             f_part = dfPaths[dfPaths['B'] == b_part]['F'].iloc[0]
-            target_pathName = f'/{a_part}/{b_part}/{c_part}//1MON/{f_part}/'
+            target_pathName = f'/{a_part}/{b_part_upper}/{c_part}//1MON/{f_part}/'
             target_path_list.append(target_pathName)
         except:
-            target_ts_list_final.remove(b_part)
+            c_target_ts_list_final.pop(b_part)
 
     # Empty lists for timeseries
     ts_list = []
@@ -127,7 +161,7 @@ def single_file_pull(dss_file, target_ts_list, scenario_name):
         working_ts = fid.read_ts(p, window=(startDate, endDate), trim_missing=False)
         ts_list.append(working_ts)
         # unit_list.append(working_ts.units)
-        c_default_units[target_ts_list_final[i]] = working_ts.units
+        c_default_units[list(c_target_ts_list_final.keys())[i]] = working_ts.units
 
     times = np.array([startDate_1])
     years = [startDate_1.year]
@@ -168,7 +202,7 @@ def single_file_pull(dss_file, target_ts_list, scenario_name):
             dy = np.append(dy, current_time.year)
 
     df_ts = pd.DataFrame(index=times)
-    for t, ts in enumerate(target_ts_list_final):
+    for t, ts in enumerate(list(c_target_ts_list_final.keys())):
         df_ts[ts] = ts_list[t].values
 
     # Duplicate columns with other (cfs/taf) unit
@@ -184,49 +218,25 @@ def single_file_pull(dss_file, target_ts_list, scenario_name):
     date_temp = df_ts.pop('Date')
     df_ts.insert(0, 'Date', date_temp)
 
-    return df_ts, target_ts_list_final, c_default_units
+    return df_ts, c_target_ts_list_final, c_default_units
 
-def multiprocessing_file_reader(runs, field_list):
+def file_reader(runs: list[list], c_field_list, s_comparison):
+    """
+    reads in the list of runs. can be multiproccessing or not by changing multiprocess to True.
+    Parameters
+        runs: list of runs and run names in the form [["Description_1", ("File_1.dss")], ...]
+        c_field_list: dictionary of fields and descriptions {field: description, ...}
+        s_comparison: string, name of the comparison scenario
+    returns
+        append_list: list of the dataframes of each run
+        baseline_stack: a list of dataframes of the comparison scenerio as many times as there are runs
+        c_default_units: dictionary of the default units for each field
+        c_field_list_final: dictionary of the final version of c_field_list
+
+    """
     results = {}
     c_default_units_all = pd.Series()
-    field_list_final = field_list.copy()
-
-    multiproces = False
-
-    # Non-multi version for debug
-    if multiproces == False:
-        for run in runs:
-            print('Working on', run[0])
-            result, target_ts_list, c_default_units = \
-                single_file_pull(run[1], field_list, run[0])
-            field_list_final = list(set(target_ts_list) & set(field_list_final))
-            # add into dictionary to store
-            c_default_units_all[run[0]] = c_default_units
-            results[run[0]] = result
-    else:
-        # create pool
-        pool = Pool()
-        # Create and start runs
-        for run in runs:
-            print('Working on', run[0])
-            result, target_ts_list, c_default_units = pool.apply_async(single_file_pull,
-                                                                       args=(run[1], field_list, run[0])).get()
-            field_list_final = list(set(target_ts_list) & set(field_list_final))
-            # add into dictionary to store
-            c_default_units_all[run[0]] = c_default_units
-            results[run[0]] = result
-
-        # close the process pool
-        pool.close()
-        # wait for all tasks to finish
-        pool.join()
-
-    return results, field_list_final, c_default_units_all
-
-def file_reader(runs: list[list], field_list, s_comparison):
-    results = {}
-    c_default_units_all = pd.Series()
-    field_list_final = field_list.copy()
+    c_field_list_final = c_field_list.copy()
 
     multiprocess = False
 
@@ -234,9 +244,11 @@ def file_reader(runs: list[list], field_list, s_comparison):
     if multiprocess == False:
         for run in runs:
             print('Working on', run[0])
-            result, target_ts_list, c_default_units = \
-                single_file_pull(run[1], field_list, run[0])
-            field_list_final = list(set(target_ts_list) & set(field_list_final))
+            result, c_target_ts_list, c_default_units = \
+                single_file_pull(run[1], c_field_list, run[0])
+
+            # make sure to remove ones that were not found
+            c_field_list_final = {field: c_field_list_final[field] for field in c_field_list_final if field in c_target_ts_list}
             # add into dictionary to store
             c_default_units_all[run[0]] = c_default_units
             results[run[0]] = result
@@ -246,9 +258,12 @@ def file_reader(runs: list[list], field_list, s_comparison):
         # Create and start runs
         for run in runs:
             print(f'Working on {run[0]} - multiproc')
-            result, target_ts_list, c_default_units = pool.apply_async(single_file_pull,
-                                                                       args=(run[1], field_list, run[0])).get()
-            field_list_final = list(set(target_ts_list) & set(field_list_final))
+            result, c_target_ts_list, c_default_units = pool.apply_async(single_file_pull,
+                                                                       args=(run[1], c_field_list, run[0])).get()
+
+            # make sure to remove ones that were not found
+            c_field_list_final = {field: c_field_list_final[field] for field in c_field_list_final if field in c_target_ts_list}
+
             # add into dictionary to store
             c_default_units_all[run[0]] = c_default_units
             results[run[0]] = result
@@ -266,9 +281,9 @@ def file_reader(runs: list[list], field_list, s_comparison):
         baseline_stack.append(results[s_comparison])
     # print(f"Run time for pulling DSS data with multiprocessing = "
     #       f"{(time.time() - start_time)} seconds")
-    print(f'Removed {list(set(field_list) ^ set(field_list_final))} from field list.')
+    print(f'Removed {list(set(c_field_list.keys()) ^ set(c_field_list_final.keys()))} from field list.')
 
     # add s_comparison to c_default_units so we have it stored
     c_default_units['comparison scenario'] = s_comparison
 
-    return append_list, baseline_stack, c_default_units
+    return append_list, baseline_stack, c_default_units, c_field_list_final
