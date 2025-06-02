@@ -10,11 +10,13 @@ from csdss_readlib_fullfile import file_reader, pickler, load_pickles, get_trend
 def get_vars_list(ls_vars, s_default):
     return [string for string in ls_vars if s_default in string]
 
-def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units_all, s_comparison, c_field_list):
+def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s_comparison, c_field_list):
 
     df_all_plot = df_all.copy(deep=True)
     df_all_plot.reset_index(inplace=True, drop=True)
     durations = [date.day for date in df_all_plot['Date']]
+
+    b_diffs_flag = False
 
     # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot
     if s_comparison in scenario_list:
@@ -25,20 +27,24 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units_al
     # if it's not, then we are creating the differences plot and don't want to include comparison scen
     if s_comparison not in df_all_plot.Scenario.unique():
         scenario_list = [scen for scen in scenario_list if scen != s_comparison]
+        b_diffs_flag = True
 
+    # check if no scenarios are selected
     if len(scenario_list) == 0:
-        return
+        return pn.pane.Markdown("## No data to display")
+
+    # check if no variables are selected
+    if len(var_list) == 0:
+        return pn.pane.Markdown('## Select variables above to display plot.')
 
     # to convert from cfs to taf or vice versa
     cfs_taf = np.multiply(durations, (24 * 3600 / 43560 / 1000))
     taf_cfs = np.divide((43560 * 1000 / 24 / 3600), durations)
 
     # Unit conversion
-    if var_list == []:
-        return pn.pane.Markdown('## Select variables above to display plot.')
     for var in var_list:
         try:
-            original_unit = c_default_units_all[var].strip()
+            original_unit = c_default_units[var].strip()
         except:
             original_unit = None
 
@@ -60,6 +66,7 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units_al
 
     # Sortable, filter to target scenarios and vars
     df_wide = pd.DataFrame(df_all_plot['Date'].unique(), columns=['Date'])
+    df_wide.reset_index(inplace=True, drop=True)
 
     keeplist = ['Date']
 
@@ -77,7 +84,7 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units_al
     keeplist.remove('Date')
 
     # add horizontal line if we are doing the differences plot
-    if s_comparison not in scenario_list:
+    if b_diffs_flag:
         return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
             x='Date',
             ylabel=unit_choice,
@@ -97,12 +104,14 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units_al
         ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, index=False, max_height=500))
 
 def plot_time_group(scenario_list, var_list, unit_choice, df_all,
-                    c_default_units_all, period_choice, s_comparison,
+                    c_default_units, period_choice, s_comparison,
                     c_field_list, ls_wyt_selected, b_wyt_period_year, li_wyt_period_months):
 
     df_all_plot = df_all.copy(deep=True)
     df_all_plot.reset_index(inplace=True, drop=True)
     durations = [date.day for date in df_all_plot['Date']]
+
+    b_diffs_flag = False
 
     # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot
     if s_comparison in scenario_list:
@@ -113,6 +122,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
     # if its not, then we are creating the differences plot and dont want to include comparison scen
     if s_comparison not in df_all_plot.Scenario.unique():
         scenario_list = [scen for scen in scenario_list if scen != s_comparison]
+        b_diffs_flag = True
 
     # check if any scenarios are selected
     if len(scenario_list) == 0:
@@ -129,7 +139,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
     # Unit conversion
     for var in var_list:
         try:
-            original_unit = c_default_units_all[var].strip()
+            original_unit = c_default_units[var].strip()
         except:
             original_unit = None
 
@@ -227,7 +237,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         df_plot = df_grouped[keeplist]
 
         # add horizontal line if we are doing the differences plot
-        if s_comparison not in scenario_list:
+        if b_diffs_flag:
             return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
                 min_height=600,
                 grid=True,
@@ -310,7 +320,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
             ls_months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
             s_title += "## " + ', '.join([ls_months[i-1] for i in li_wyt_period_months])
         # add horizontal line if we are doing the differences plot
-        if s_comparison not in scenario_list:
+        if b_diffs_flag:
 
             return pn.Column(s_title, pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot.scatter(
                 y=keeplist[len(scenario_list):], # to avoid plotting the wyt
@@ -337,7 +347,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         df_plot = df_grouped[keeplist]
 
         # add horizontal line if we are doing the differences plot
-        if s_comparison not in scenario_list:
+        if b_diffs_flag:
             return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
                 y=keeplist[1:],
                 min_height=600,
@@ -357,12 +367,14 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 
 
 def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
-                         c_default_units_all, period_choice, s_comparison, c_field_list,
+                         c_default_units, period_choice, s_comparison, c_field_list,
                          ls_wyt_selected, b_wyt_period_year, li_wyt_period_months):
 
     df_all_plot = df_all.copy(deep=True)
     df_all_plot.reset_index(inplace=True, drop=True)
     durations = [date.day for date in df_all_plot['Date']]
+
+    b_diffs_flag = False
 
     # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot
     if s_comparison in scenario_list:
@@ -373,6 +385,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
     # if it's not, then we are creating the differences plot and don't want to include comparison scen
     if s_comparison not in df_all_plot.Scenario.unique():
         scenario_list = [scen for scen in scenario_list if scen != s_comparison]
+        b_diffs_flag = True
 
     # check if any scenarios are selected
     if len(scenario_list) == 0:
@@ -389,7 +402,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
     # Unit conversion
     for var in var_list:
         try:
-            original_unit = c_default_units_all[var].strip()
+            original_unit = c_default_units[var].strip()
         except:
             original_unit = None
 
@@ -503,7 +516,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 
 
         # add horizontal line if we are doing the differences plot
-        if s_comparison not in scenario_list:
+        if b_diffs_flag:
             return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_exceed.hvplot(
                 x='exceedance_probability',
                 min_height=600,
@@ -612,7 +625,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
             s_title += "## " + ', '.join([ls_months[i-1] for i in li_wyt_period_months])
 
         # add horizontal line if we are doing the differences plot
-        if s_comparison not in scenario_list:
+        if b_diffs_flag:
             return pn.Column(s_title, pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_exceed.hvplot(
                 x='exceedance_probability',
                 min_height=600,
@@ -661,7 +674,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 
 
         # add horizontal line if we are doing the differences plot
-        if s_comparison not in scenario_list:
+        if b_diffs_flag:
             return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_exceed.hvplot(
                 x='exceedance_probability',
                 min_height=600,
@@ -684,12 +697,14 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
             ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
 
 def plot_bars(df_all, period_choice, var_list, scenario_list,
-              units_choice, stat_choice, c_default_units, s_comparison, c_field_list,
+              unit_choice, stat_choice, c_default_units, s_comparison, c_field_list,
               ls_wyt_selected, b_wyt_period_year, li_wyt_period_months):
 
     df_all_plot = df_all.copy(deep=True)
     df_all_plot.reset_index(inplace=True, drop=True)
     durations = [date.day for date in df_all['Date']]
+
+    b_diffs_flag = False
 
     # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot
     if s_comparison in scenario_list:
@@ -700,6 +715,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     # if it's not, then we are creating the differences plot and dont want to include comparison scen
     if s_comparison not in df_all.Scenario.unique():
         scenario_list = [scen for scen in scenario_list if scen != s_comparison]
+        b_diffs_flag = True
 
     # check if no scenarios are selected
     if len(scenario_list) == 0:
@@ -722,7 +738,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
 
         if original_unit not in ['CFS', 'TAF']:
             pass
-        elif original_unit == units_choice:
+        elif original_unit == unit_choice:
             pass
         elif original_unit == 'CFS':
             df_all_plot[var] = \
@@ -931,11 +947,11 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     df_stats['Color'] = ls_colors_to_use
 
     # add horizontal line if we are doing the differences plot
-    if s_comparison not in scenario_list:
+    if b_diffs_flag:
         return pn.Column(s_title,
             pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_stats.hvplot.bar(
                                                                                                   title='',  color='Color', grid=True,
-                                                                                                  ylabel=units_choice,
+                                                                                                  ylabel=unit_choice,
                                                                                                   ylim=(y_lower, y_upper),
                                    min_height=600, legend=False), sizing_mode='stretch_width', linked_axes=False),
             pn.pane.DataFrame(df_plot, max_height=500))
@@ -944,29 +960,111 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
         return pn.Column(s_title,
             pn.pane.HoloViews(df_stats.hvplot.bar(
                                                   title='',  color='Color', grid=True,
-                                                  ylabel=units_choice,
+                                                  ylabel=unit_choice,
                                                   ylim=(y_lower, y_upper),
                                                   min_height=600), sizing_mode='stretch_width', linked_axes=False),
             pn.pane.DataFrame(df_plot, max_height=500))
 
-def run_operation(df, op_choice):
-    #If user selects scenario that has been previously run, grab pickle files
-    if op_choice == "Previously used files":
-        # This runs no matter what. The pickle files allow you to come back and
-        # pull the same variables without waiting for the file reads to complete
-        df_all_data, df_diffs, c_default_units = load_pickles()
+def monthly_pattern(df_all, var_list, scenario_list, unit_choice, stat_choice, c_default_units, s_comparison, c_field_list):
+    df_all_plot = df_all.copy(deep=True)
+    df_all_plot.reset_index(inplace=True, drop=True)
+    durations = [date.day for date in df_all_plot['Date']]
 
+    b_diffs_flag = False
 
+    # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot
+    if s_comparison in scenario_list:
+        scenario_list.remove(s_comparison)
+        scenario_list.append(s_comparison)
 
-    #Else, request file names and begin new DSS Reader run
-    '''
-    else:
-        append_list, baseline_stack, c_default_units = file_reader(runs, field_list)
-        pickler(append_list, baseline_stack, c_default_units)
-         # Write to Excel.
+    # check if comparison scen is in the data frame
+    # if it's not, then we are creating the differences plot and don't want to include comparison scen
+    if s_comparison not in df_all_plot.Scenario.unique():
+        scenario_list = [scen for scen in scenario_list if scen != s_comparison]
+        b_diffs_flag = True
+
+    # check if no scenarios are selected
+    if len(scenario_list) == 0:
+        return pn.pane.Markdown("## No data to display")
+
+    # check if no variables are selected
+    if len(var_list) == 0:
+        return pn.pane.Markdown('## Select variables above to display plot.')
+
+    # to convert from cfs to taf or vice versa
+    cfs_taf = np.multiply(durations, (24 * 3600 / 43560 / 1000))
+    taf_cfs = np.divide((43560 * 1000 / 24 / 3600), durations)
+
+    # Unit conversion
+    for var in var_list:
         try:
-            df_all_data.to_excel("DSS_contents.xlsx")
+            original_unit = c_default_units[var].strip()
         except:
-            print("Error writing output file. "
-                  "Make sure 'DSS_contents.xlsx' is not open.")
-    '''
+            original_unit = None
+
+        if original_unit not in ['CFS', 'TAF']:
+            pass
+        elif original_unit == unit_choice:
+            pass
+        elif original_unit == 'CFS':
+            df_all_plot[var] = \
+                np.multiply(df_all_plot[var], cfs_taf)
+        elif original_unit == 'TAF':
+            df_all_plot[var] = \
+                np.multiply(df_all_plot[var], taf_cfs)
+
+    # switch from variable name to description
+    df_all_plot.rename(c_field_list, axis='columns', inplace=True)
+    var_list = [c_field_list[var] for var in var_list]
+
+    # Sortable, filter to target scenarios and vars
+    df_wide = pd.DataFrame(df_all_plot['Date'].unique(), columns=['Date'])
+    df_wide[['Month']] = df_all_plot.loc[df_all_plot['Scenario'] == scenario_list[0]][['Month']].reset_index(drop=True)
+    df_wide.reset_index(inplace=True, drop=True)
+
+    keeplist = ['Month']
+
+    for scenario in scenario_list:
+        df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][var_list]
+        df_temp.reset_index(inplace=True, drop=True)
+        col_names = [f'{scenario}: {var}' for var in var_list]
+        df_temp.columns = col_names
+        df_wide[col_names] = df_temp[col_names]
+        for name in col_names:
+            keeplist.append(name)
+
+    df_grouped = df_wide[keeplist].groupby('Month')
+
+    if stat_choice == 'Average':
+        df_plot = df_grouped.mean()
+    elif stat_choice == 'Minimum':
+        df_plot = df_grouped.min()
+    else:
+        df_plot = df_grouped.max()
+
+    # reorder to be in water year
+    df_plot = df_plot.reindex(index=[10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+
+    # switch from numbers to month abbreviations
+    c_num_to_month = {1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'}
+    df_plot.index = df_plot.index.map(c_num_to_month)
+
+    # if doing difference plot, add horizontal line
+    if b_diffs_flag:
+        return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
+            x='Month',
+            min_height=600,
+            ylabel=unit_choice,
+            grid=True
+        ),
+            sizing_mode='stretch_width', linked_axes=False),
+            pn.pane.DataFrame(df_wide, index=False, max_height=500))
+    else:
+        return pn.Column(pn.pane.HoloViews(df_plot.hvplot(
+            x='Month',
+            min_height=600,
+            ylabel=unit_choice,
+            grid=True
+        ),
+            sizing_mode='stretch_width', linked_axes=False),
+            pn.pane.DataFrame(df_wide, index=False, max_height=500))

@@ -10,7 +10,7 @@
 
 # Import data handling functions from our local module
 from csdss_readlib_fullfile import file_reader, pickler, load_pickles, get_trend_fields
-from cs3_plotlib import plot_values, plot_time_group, plot_time_exceedance, plot_bars, run_operation
+from cs3_plotlib import plot_values, plot_time_group, plot_time_exceedance, plot_bars, monthly_pattern
 import panel as pn
 import os
 from os import path
@@ -63,6 +63,7 @@ single_var_plots = pn.Column()
 timeseries_plots = pn.Row()
 grouped_plots = pn.Row()
 exceedance_plots = pn.Row()
+monthly_plots = pn.Column()
 def update_dss_file_widget(event):
     global file_picker_column  # Access the global variable
     if event.name == "value":
@@ -405,6 +406,7 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
     global grouped_plots
     global exceedance_plots
     global timeseries_plots
+    global monthly_plots
     global header
     global tabs_row
     global s_comparison
@@ -486,10 +488,11 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
         width=400
     )
 
-    # 20241223: Create different dataframes for each function call
-    # Trying to fix non-independent plots issue
-    # df_all_data_ts = df_all_data.copy(deep=True)
-    # df_all_data_ts_diffs = df_diffs.copy(deep=True)
+    monthly_stat_sel = pn.widgets.Select(
+        name='Statistic Selector',
+        options=['Average', 'Minimum', 'Maximum'],
+        width=400
+    )
 
     # remove comparison scen from the differences dataframe as all values are zero
     df_diffs = df_diffs[df_diffs.Scenario != s_comparison]
@@ -503,7 +506,7 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
         var_list=var_selector,
         unit_choice=unit_selector,
         df_all=df_all_data,
-        c_default_units_all=c_default_units,
+        c_default_units=c_default_units,
         s_comparison=s_comparison,
         c_field_list=c_field_list
     )
@@ -514,7 +517,7 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
         var_list=var_selector,
         unit_choice=unit_selector,
         df_all=df_diffs,
-        c_default_units_all=c_default_units,
+        c_default_units=c_default_units,
         s_comparison=s_comparison,
         c_field_list=c_field_list
     )
@@ -525,7 +528,7 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
         var_list=var_selector,
         unit_choice=unit_selector,
         df_all=df_all_data,
-        c_default_units_all=c_default_units,
+        c_default_units=c_default_units,
         period_choice=period_selector,
         s_comparison=s_comparison,
         c_field_list=c_field_list,
@@ -540,7 +543,7 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
         var_list=var_selector,
         unit_choice=unit_selector,
         df_all=df_diffs,
-        c_default_units_all=c_default_units,
+        c_default_units=c_default_units,
         period_choice=period_selector,
         s_comparison=s_comparison,
         c_field_list=c_field_list,
@@ -555,7 +558,7 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
         var_list=var_selector,
         unit_choice=unit_selector,
         df_all=df_all_data,
-        c_default_units_all=c_default_units,
+        c_default_units=c_default_units,
         period_choice=period_selector,
         s_comparison=s_comparison,
         c_field_list=c_field_list,
@@ -570,7 +573,7 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
         var_list=var_selector,
         unit_choice=unit_selector,
         df_all=df_diffs,
-        c_default_units_all=c_default_units,
+        c_default_units=c_default_units,
         period_choice=period_selector,
         s_comparison=s_comparison,
         c_field_list=c_field_list,
@@ -585,7 +588,7 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
         period_choice=period_selector,
         var_list=var_selector,
         scenario_list=scen_selector,
-        units_choice=unit_selector,
+        unit_choice=unit_selector,
         stat_choice=stat_sel,
         c_default_units=c_default_units,
         s_comparison=s_comparison,
@@ -601,7 +604,7 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
         period_choice=period_selector,
         var_list=var_selector,
         scenario_list=scen_selector,
-        units_choice=unit_selector,
+        unit_choice=unit_selector,
         stat_choice=stat_sel,
         c_default_units=c_default_units,
         s_comparison=s_comparison,
@@ -611,6 +614,27 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
         li_wyt_period_months=wyt_period_selector
     )
 
+    bound_monthly_plot = pn.bind(
+        monthly_pattern,
+        df_all=df_all_data,
+        var_list=var_selector,
+        scenario_list=scen_selector,
+        unit_choice=unit_selector,
+        stat_choice=monthly_stat_sel,
+        c_default_units=c_default_units,
+        s_comparison=s_comparison,
+        c_field_list=c_field_list)
+
+    bound_monthly_diffs_plot = pn.bind(
+        monthly_pattern,
+        df_all=df_diffs,
+        var_list=var_selector,
+        scenario_list=scen_selector,
+        unit_choice=unit_selector,
+        stat_choice=monthly_stat_sel,
+        c_default_units=c_default_units,
+        s_comparison=s_comparison,
+        c_field_list=c_field_list)
 
     ts_title = pn.pane.Markdown("# Timeseries Plot"
                                 )
@@ -650,6 +674,15 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
                                     s_period=period_selector,
                                     s_stat=stat_sel)
 
+    monthly_title = pn.bind(create_plot_title,
+                            s_title="Monthly Pattern",
+                            s_stat=monthly_stat_sel)
+
+    monthly_diffs_title = pn.bind(create_plot_title,
+                            s_title="Monthly Pattern",
+                            s_comparison=s_comparison,
+                            s_stat=monthly_stat_sel)
+
     #Add selectors to header row in template and refresh objects
     header.append(scen_selector)
     header.append(var_selector)
@@ -671,11 +704,15 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
     exceedance_plots.append(pn.Column(exceedance_title, bound_plot_exceedance))
     exceedance_plots.append(pn.Column(exceedance_diff_title, bound_plot_diffs_exceedance))
 
+    monthly_plots.append(pn.Row(monthly_stat_sel))
+    monthly_plots.append(pn.Row(pn.Column(monthly_title, bound_monthly_plot), pn.Column(monthly_diffs_title, bound_monthly_diffs_plot)))
+
     tabs = pn.Tabs(
         ('Bar Plot', single_var_plots),
         ('Timeseries', timeseries_plots),
         ('Time-Aggregated', grouped_plots),
-        ('Exceedance', exceedance_plots))
+        ('Exceedance', exceedance_plots),
+        ('Monthly Pattern', monthly_plots))
 
     tabs_row.append(tabs)
     tabs_row.param.trigger("objects")
