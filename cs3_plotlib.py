@@ -339,8 +339,9 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
             ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
 
     # selected a month
-    else:
+    elif isinstance(period_choice, int):
         df_wide = df_wide[df_wide.Month == period_choice]
+
         # Can't sum dates: drop
         df_wide = df_wide.drop('Date', axis=1)
         df_grouped = df_wide.groupby(by=['DY']).sum()
@@ -365,6 +366,41 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
                 grid=True
             ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
 
+    # if they picked a partial month
+    else:
+        # pull out start and stop months and then create a list of all the months in between
+        i_start_month, i_end_month = int(period_choice.split('-')[0]), int(period_choice.split('-')[1])
+        if i_end_month > i_start_month:
+            li_months = list(range(i_start_month, i_end_month+1))
+        else:
+            li_months = list(range(i_start_month, 13)) + list(range(1, i_end_month+1))
+
+        # filter for those months
+        df_wide = df_wide[df_wide['Month'].isin(li_months)]
+
+        # Can't sum dates: drop
+        df_wide = df_wide.drop('Date', axis=1)
+        df_grouped = df_wide.groupby(by=['WY']).sum()
+        df_plot = df_grouped[keeplist]
+
+        # add horizontal line if we are doing the differences plot
+        if b_diffs_flag:
+            return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
+                y=keeplist[1:],
+                min_height=600,
+                ylabel=unit_choice,
+                xlabel='Year',
+                grid=True
+            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
+
+        else:
+            return pn.Column(pn.pane.HoloViews(df_plot.hvplot(
+                y=keeplist[1:],
+                min_height=600,
+                ylabel=unit_choice,
+                xlabel='Year',
+                grid=True
+            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
 
 def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                          c_default_units, period_choice, s_comparison, c_field_list,
@@ -649,7 +685,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 
 
     # month choice
-    else:
+    elif isinstance(period_choice, int):
         df_wide = df_wide[df_wide.Month == period_choice]
 
         # Exceedance
@@ -672,6 +708,59 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 df_exceed[var] = l_sorted
 
 
+
+        # add horizontal line if we are doing the differences plot
+        if b_diffs_flag:
+            return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_exceed.hvplot(
+                x='exceedance_probability',
+                min_height=600,
+                ylabel=unit_choice,
+                xlabel='Probability of Exceedance',
+                flip_xaxis=True,
+                xformatter='%f%%',
+                grid=True
+            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
+
+        else:
+            return pn.Column(pn.pane.HoloViews(df_exceed.hvplot(
+                x='exceedance_probability',
+                min_height=600,
+                ylabel=unit_choice,
+                xlabel='Probability of Exceedance',
+                flip_xaxis=True,
+                xformatter='%f%%',
+                grid=True
+            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
+
+    else:
+        # pull out start and stop months and then create a list of all the months in between
+        i_start_month, i_end_month = int(period_choice.split('-')[0]), int(period_choice.split('-')[1])
+        if i_end_month > i_start_month:
+            li_months = list(range(i_start_month, i_end_month+1))
+        else:
+            li_months = list(range(i_start_month, 13)) + list(range(1, i_end_month+1))
+
+        # filter for those months
+        df_wide = df_wide[df_wide['Month'].isin(li_months)]
+
+        # Exceedance
+
+        # Can't sum dates: drop
+        df_wide = df_wide.drop('Date', axis=1)
+        df_grouped = df_wide.groupby(by=['WY']).sum()
+        df_grouped.reset_index(inplace=True)
+        # plot_pos = df_grouped.index
+        df_exceed = pd.DataFrame(index=df_grouped.index)
+
+        # add exceedance probabilities
+        i_n = df_grouped.shape[0]
+        ld_probabilities = [m / (i_n + 1) * 100 for m in range(i_n, 0, -1)]
+        df_exceed['exceedance_probability'] = ld_probabilities
+
+        for var in keeplist:
+            if var != 'Date':
+                l_sorted = df_grouped[var].sort_values().reset_index(drop=True)
+                df_exceed[var] = l_sorted
 
         # add horizontal line if we are doing the differences plot
         if b_diffs_flag:
@@ -907,9 +996,34 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
             s_title += "## " + ', '.join([ls_months[i - 1] for i in li_wyt_period_months])
 
     # Month chosen
-    else:
+    elif isinstance(period_choice, int):
         df_wide = df_wide[df_wide.Month == period_choice]
-        df_grouped = df_wide.groupby(by=['Date']).sum()
+        df_grouped = df_wide.groupby(by=['DY']).sum()
+        df_plot = df_grouped[keeplist]
+
+        # calculate chosen stat
+        if stat_choice == 'Average':
+            df_stats = df_plot.mean().to_frame()
+        elif stat_choice == 'Minimum':
+            df_stats = df_plot.min().to_frame()
+        else:
+            df_stats = df_plot.max().to_frame()
+    # chose a partial year
+    else:
+        # pull out start and stop months and then create a list of all the months in between
+        i_start_month, i_end_month = int(period_choice.split('-')[0]), int(period_choice.split('-')[1])
+        if i_end_month > i_start_month:
+            li_months = list(range(i_start_month, i_end_month+1))
+        else:
+            li_months = list(range(i_start_month, 13)) + list(range(1, i_end_month+1))
+
+        # filter for those months
+        df_wide = df_wide[df_wide['Month'].isin(li_months)]
+
+        # Can't sum dates: drop
+        df_wide = df_wide.drop('Date', axis=1)
+
+        df_grouped = df_wide.groupby(by=['WY']).sum()
         df_plot = df_grouped[keeplist]
 
         # calculate chosen stat

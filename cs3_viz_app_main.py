@@ -348,7 +348,10 @@ def create_plot_title(s_title, s_comparison='', s_period='', s_stat=''):
     c_period_code_to_name = {"DY": "January-December", "WY": "October-September", "CY": "March-February",
                              1: "January", 2: "February", 3: "March", 4: "April",
                              5: "May", 6: "June", 7: "July", 8: "August",
-                             9: "September", 10: "October", 11: "November", 12: "December"
+                             9: "September", 10: "October", 11: "November", 12: "December",
+                             '11-3': 'November-March', '8-10': 'August-October', '10-1': 'October-January',
+                             '12-2': 'December-February', '3-5': 'March-May', '3-6': 'March-June',
+                             '6-9': 'June-September', '9-11': 'September-November'
                              }
     s_final_title = "# "
     if s_stat:
@@ -433,8 +436,11 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
         name='Period Selector',
         groups={'Year': {"January-December": "DY", "October-September": "WY", "March-February": "CY"},
                 'Month': {"January": 1, "February": 2, "March": 3, "April": 4,
-                 "May": 5, "June": 6, "July": 7, "August": 8,
-                 "September": 9, "October": 10, "November": 11, "December": 12},
+                          "May": 5, "June": 6, "July": 7, "August": 8,
+                          "September": 9, "October": 10, "November": 11, "December": 12},
+                "Partial Year": {'November-March': '11-3', 'August-October': '8-10', 'October-January': '10-1',
+                                 'December-February': '12-2', 'March-May': '3-5', 'March-June': '3-6',
+                                 'June-September': '6-9', 'September-November': '9-11'},
                 'Water Year Type': {description: wyt for wyt, description in c_field_list.items() if len(wyt) >=3 and wyt[:3] == 'WYT'}
                 },
         width=300
