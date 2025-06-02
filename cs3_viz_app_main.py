@@ -134,7 +134,7 @@ def add_run_names_widget(event):
                 # Enter a run name for each file (e.g. Baseline, Alt1, etc.). 
                 
                 ## <span style="color:red">One run must be marked for comparison.</span>
-                """)
+                """, renderer='markdown')
             run_name_column.append(run_name_instructions)
             run_name_col_tracker.append("run_name_instructions")
 
@@ -176,23 +176,48 @@ def add_run_names_widget(event):
             # no need for fields section, just start pulling the files
             update_run_names(event)
 
+        # add option to override TR_fields.txt
+        override_TR_fields_instructions = pn.pane.Markdown("""
+        # OPTIONAL override default fields:
+        
+        ## If you would like to override the built in default fields, select a text file with your preferred fields.
+        
+        ### Each line must be a field with the variable name followed by a space or tab followed by the description of the variable. This is the default format if copied and pasted from an excel sheet.
+        
+        ### Example:
+        
+        > S_FOLSM Folsom Storage
+        >
+        > S_SHSTA Shasta Storage
+        
+        ...
+        """, renderer='markdown')
+
+        field_column.append(override_TR_fields_instructions)
+        field_col_tracker.append("override_instructions")
+
+        override_file = pn.widgets.FileInput(accept='.txt', multiple=False, max_width=500)
+
+        field_column.append(override_file)
+        field_col_tracker.append("override_file")
+
         #Also add optional field add text box
         add_field_instructions = pn.pane.Markdown("""
         # OPTIONAL additional fields: 
         
-        ## Add additional fields to visualize that are not present in the default list. 
+        ## Add additional fields to visualize that are not present in the default list (or your chosen list). 
         
         ### Each line is a field with the variable name followed by a space or tab followed by the description of the variable. This is the default format if copied and pasted from an excel sheet.
         
         ### Example:
         
-        S_FOLSM Folsom Storage
-        
-        S_SHSTA Shasta Storage
+        > S_FOLSM Folsom Storage
+        >
+        > S_SHSTA Shasta Storage
         
         ...
         
-        """)
+        """, renderer='markdown')
         field_column.append(add_field_instructions)
         field_col_tracker.append("add_field_instructions")
 
@@ -266,13 +291,41 @@ def update_run_names(event):
         # pulling from TR_fields.txt
         c_tr_fields = get_trend_fields()
 
-        # to hold the ones entered in the optional field
-        c_new_fields = {}
-        if field_column[1].value != '':
-            for line in field_column[1].value.split('\n'):
+        # get the overridden fields
+        override_TR_fields = field_column[field_col_tracker.index("override_file")].value
+        c_override_fields = {}
+        if override_TR_fields:
+            override_TR_fields_text = override_TR_fields.decode()
+            for line in override_TR_fields_text.split('\n'):
                 line = line.strip()
                 new_field = line.split(maxsplit=1)
-                if len(new_field) != 2:
+                print(new_field)
+                if len(new_field) == 0:
+                    continue
+                elif len(new_field) == 1:
+                    field = new_field[0]
+                    field = field.strip(' ').upper()
+                    if field in c_tr_fields.keys():
+                        c_override_fields[field] = c_tr_fields[field]
+                    else:
+                        c_override_fields[field] = field
+                else:
+                    field, description = new_field
+
+                    field = field.strip(' ').upper()
+                    description = description.strip('\n')
+                    description = description + ' (' + field + ')'
+                    c_override_fields[field] = description
+        print(c_override_fields)
+        # to hold the ones entered in the optional field
+        c_new_fields = {}
+        if field_column[field_col_tracker.index("add_field_text")].value != '':
+            for line in field_column[field_col_tracker.index("add_field_text")].value.split('\n'):
+                line = line.strip()
+                new_field = line.split(maxsplit=1)
+                if len(new_field) == 0:
+                    continue
+                elif len(new_field) == 1:
                     field = new_field[0]
                     field = field.strip(' ').upper()
                     c_new_fields[field] = field
@@ -283,9 +336,11 @@ def update_run_names(event):
                     description = description.strip('\n')
                     description = description + ' (' + field + ')'
                     c_new_fields[field] = description
-
-        c_field_list = c_tr_fields | c_new_fields
-
+        if override_TR_fields:
+            c_field_list = c_override_fields | c_new_fields
+        else:
+            c_field_list = c_tr_fields | c_new_fields
+        print(c_field_list)
         runs = []
 
         #Pair file names with user entered run names
