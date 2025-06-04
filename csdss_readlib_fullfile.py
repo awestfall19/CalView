@@ -81,30 +81,46 @@ def pickler(append_list, baseline_stack, c_default_units, c_field_list):
     pickle.dump(c_field_list, pickled_fields)
     pickled_fields.close()
 
-def load_pickles():
+def load_pickles(ls_files):
+    if not ls_files:
+        ls_files = ['values.pkl', 'diffs.pkl', 'units.pkl', 'fields.pkl']
+    s_values_path = ''
+    s_diffs_path = ''
+    s_units_path = ''
+    s_fields_path = ''
+    for file in ls_files:
+        # check for each file type and assign the path name
+        if 'values.pkl' in file:
+            s_values_path = file
+        if 'diffs.pkl' in file:
+            s_diffs_path = file
+        if 'units.pkl' in file:
+            s_units_path = file
+        if 'fields.pkl' in file:
+            s_fields_path = file
     try:
-        load_data = open('values.pkl', 'rb')
+        load_data = open(s_values_path, 'rb')
         df_all_data = pickle.load(load_data)
         load_data.close()
     except:
         print("Missing \"values.pkl\". Please run pickler")
 
     try:
-        load_diffs = open('diffs.pkl', 'rb')
+        load_diffs = open(s_diffs_path, 'rb')
         df_diffs = pickle.load(load_diffs)
         load_diffs.close()
     except:
         print("Missing \"diffs.pkl\". Please run pickler")
 
     try:
-        load_units = open('units.pkl', 'rb')
+        load_units = open(s_units_path, 'rb')
         c_default_units = pickle.load(load_units)
         load_units.close()
     except:
         print("Missing \"units.pkl\". Please run pickler")
 
     try:
-        load_fields = open('fields.pkl', 'rb')
+        load_fields = open(s_fields_path, 'rb')
         c_field_list = pickle.load(load_fields)
         load_fields.close()
     except:

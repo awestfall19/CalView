@@ -301,7 +301,6 @@ def update_run_names(event):
             for line in override_TR_fields_text.split('\n'):
                 line = line.strip()
                 new_field = line.split(maxsplit=1)
-                print(new_field)
                 if len(new_field) == 0:
                     continue
                 elif len(new_field) == 1:
@@ -318,7 +317,7 @@ def update_run_names(event):
                     description = description.strip('\n')
                     description = description + ' (' + field + ')'
                     c_override_fields[field] = description
-        print(c_override_fields)
+
         # to hold the ones entered in the optional field
         c_new_fields = {}
         if field_column[field_col_tracker.index("add_field_text")].value != '':
@@ -342,7 +341,6 @@ def update_run_names(event):
             c_field_list = c_override_fields | c_new_fields
         else:
             c_field_list = c_tr_fields | c_new_fields
-        print(c_field_list)
         runs = []
 
         #Pair file names with user entered run names
@@ -364,20 +362,20 @@ def update_run_names(event):
 
         # This runs no matter what. The pickle files allow you to come back and
         # pull the same variables without waiting for the file reads to complete
-        df_all_data, df_diffs, c_default_units, c_field_list = load_pickles()
+        df_all_data, df_diffs, c_default_units, c_field_list = load_pickles([])
 
         # Write to Excel.
-        try:
-            df_all_data.to_excel("DSS_contents.xlsx")
-        except:
-            print("Error writing output file. ")
+        # try:
+        #     df_all_data.to_excel("DSS_contents.xlsx")
+        # except:
+        #     print("Error writing output file. ")
 
         print(f'Pulled: {len(runs)} files')
         print(runs)
 
     #Load pickles from previous run
     else:
-        df_all_data, df_diffs, c_default_units, c_field_list = load_pickles()
+        df_all_data, df_diffs, c_default_units, c_field_list = load_pickles(files)
 
     # need to pull comparison scenario from un pickled files
     s_comparison = c_default_units['comparison scenario']
@@ -545,15 +543,19 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
         width=400
     )
 
-    stat_sel = pn.widgets.Select(
+    bar_stat_sel = pn.widgets.Select(
         name='Statistic Selector',
-        options=['Average', 'Minimum', 'Maximum'],
+        options=['Average', 'Minimum', 'Maximum',
+                 '90% Exceedence Probability', '75% Exceedence Probability', '50% Exceedence Probability',
+                 '25% Exceedence Probability', '10% Exceedence Probability'],
         width=400
     )
 
     monthly_stat_sel = pn.widgets.Select(
         name='Statistic Selector',
-        options=['Average', 'Minimum', 'Maximum'],
+        options=['Average', 'Minimum', 'Maximum',
+                 '90% Exceedence Probability', '75% Exceedence Probability', '50% Exceedence Probability',
+                 '25% Exceedence Probability', '10% Exceedence Probability'],
         width=400
     )
 
@@ -652,7 +654,7 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
         var_list=var_selector,
         scenario_list=scen_selector,
         unit_choice=unit_selector,
-        stat_choice=stat_sel,
+        stat_choice=bar_stat_sel,
         c_default_units=c_default_units,
         s_comparison=s_comparison,
         c_field_list=c_field_list,
@@ -668,7 +670,7 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
         var_list=var_selector,
         scenario_list=scen_selector,
         unit_choice=unit_selector,
-        stat_choice=stat_sel,
+        stat_choice=bar_stat_sel,
         c_default_units=c_default_units,
         s_comparison=s_comparison,
         c_field_list=c_field_list,
@@ -729,13 +731,13 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
                                s_title="Bar Plot",
                                s_comparison='',
                                s_period=period_selector,
-                               s_stat=stat_sel)
+                               s_stat=bar_stat_sel)
 
     single_var_diff_title = pn.bind(create_plot_title,
                                     s_title="Bar Plot",
                                     s_comparison=s_comparison,
                                     s_period=period_selector,
-                                    s_stat=stat_sel)
+                                    s_stat=bar_stat_sel)
 
     monthly_title = pn.bind(create_plot_title,
                             s_title="Monthly Pattern",
@@ -753,7 +755,7 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
     header.append(unit_selector)
     header.param.trigger("objects")
 
-    single_var_widgets = pn.Row(stat_sel)
+    single_var_widgets = pn.Row(bar_stat_sel)
 
     single_var_plots.append(single_var_widgets)
     single_var_plots.append(pn.Row(pn.Column(single_var_title,bound_single_var_plot),pn.Column(single_var_diff_title,bound_single_var_diff_plot)))

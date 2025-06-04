@@ -90,8 +90,7 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
             ylabel=unit_choice,
             xlabel='Date',
             grid=True,
-            min_height=600,
-            label='test'
+            min_height=600
         ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, index=False, max_height=500))
 
     else:
@@ -929,8 +928,33 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
             df_stats = df_plot.mean().to_frame()
         elif stat_choice == 'Minimum':
             df_stats = df_plot.min().to_frame()
-        else:
+        elif stat_choice == 'Maximum':
             df_stats = df_plot.max().to_frame()
+        # want an exceedance probability
+        else:
+            i_exceedance_prob = int(stat_choice.split('%')[0])
+
+            df_exceed = pd.DataFrame(index=df_plot.reset_index().index)
+            # add exceedance probabilities
+            i_n = df_plot.shape[0]
+            ld_probabilities = [m / (i_n + 1) * 100 for m in range(i_n, 0, -1)]
+            df_exceed['exceedance_probability'] = ld_probabilities
+
+            for var in keeplist:
+                if var != 'Date':
+                    l_sorted = df_plot[var].sort_values().reset_index(drop=True)
+                    df_exceed[var] = l_sorted
+
+            # if hte probability has already been calculated
+            df_exceed = df_exceed.set_index('exceedance_probability')
+            if i_exceedance_prob in df_exceed.index:
+                df_stats = df_exceed.loc[i_exceedance_prob].to_frame()
+
+            # need to interpolate
+            else:
+                df_exceed.loc[i_exceedance_prob] = pd.Series(dtype='float32')
+                df_exceed.interpolate(method='index', inplace=True)
+                df_stats = df_exceed.loc[i_exceedance_prob].to_frame()
 
     # if water year type is selected as period
     elif (len(str(period_choice)) >= 3) and (period_choice[:3] == 'WYT'):
@@ -1002,8 +1026,32 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
                     df_temp = df_temp[col_names].mean()
                 elif stat_choice == 'Minimum':
                     df_temp = df_temp[col_names].min()
-                else:
+                elif stat_choice == 'Maximum':
                     df_temp = df_temp[col_names].max()
+                # want an exceedance probability
+                else:
+                    i_exceedance_prob = int(stat_choice.split('%')[0])
+
+                    df_exceed = pd.DataFrame(index=df_temp.reset_index().index)
+                    # add exceedance probabilities
+                    i_n = df_temp.shape[0]
+                    ld_probabilities = [m / (i_n + 1) * 100 for m in range(i_n, 0, -1)]
+                    df_exceed['exceedance_probability'] = ld_probabilities
+
+                    l_sorted = df_temp[col_names[0]].sort_values().reset_index(drop=True)
+                    df_exceed[col_names[0]] = l_sorted
+
+                    # if hte probability has already been calculated
+                    df_exceed = df_exceed.set_index('exceedance_probability')
+                    if i_exceedance_prob in df_exceed.index:
+                        df_temp = df_exceed.loc[i_exceedance_prob]
+
+                    # need to interpolate
+                    else:
+                        df_exceed.loc[i_exceedance_prob] = pd.Series(dtype='float32')
+                        df_exceed.interpolate(method='index', inplace=True)
+                        df_temp = df_exceed.loc[i_exceedance_prob]
+
                 df_final.loc[(i_wyt, s_scen), var_list[0]] = df_temp.values
         for s_scen in scenario_list:
             s_scen_wyt_col = f'{s_scen}: {s_wyt_col}'
@@ -1013,8 +1061,31 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
                 df_temp = df_temp[col_names].mean()
             elif stat_choice == 'Minimum':
                 df_temp = df_temp[col_names].min()
-            else:
+            elif stat_choice == 'Maximum':
                 df_temp = df_temp[col_names].max()
+            # want an exceedance probability
+            else:
+                i_exceedance_prob = int(stat_choice.split('%')[0])
+
+                df_exceed = pd.DataFrame(index=df_temp.reset_index().index)
+                # add exceedance probabilities
+                i_n = df_temp.shape[0]
+                ld_probabilities = [m / (i_n + 1) * 100 for m in range(i_n, 0, -1)]
+                df_exceed['exceedance_probability'] = ld_probabilities
+
+                l_sorted = df_temp[col_names[0]].sort_values().reset_index(drop=True)
+                df_exceed[col_names[0]] = l_sorted
+
+                # if hte probability has already been calculated
+                df_exceed = df_exceed.set_index('exceedance_probability')
+                if i_exceedance_prob in df_exceed.index:
+                    df_temp = df_exceed.loc[i_exceedance_prob]
+
+                # need to interpolate
+                else:
+                    df_exceed.loc[i_exceedance_prob] = pd.Series(dtype='float32')
+                    df_exceed.interpolate(method='index', inplace=True)
+                    df_temp = df_exceed.loc[i_exceedance_prob]
             df_final.loc[(6, s_scen), var_list[0]] = df_temp.values
 
         s_title = "## " + s_wyt_col + " "
@@ -1041,7 +1112,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
         # b_diffs_flag is so that we only get one
         if len(var_list) > 1 and b_diffs_flag:
             pn.state.notifications.position = 'center-center'
-            pn.state.notifications.warning('If more than one variable is selected, bar chart will only display the first.', duration=4000)
+            pn.state.notifications.warning('If more than one variable is selected while filtering by water year type, the bar chart will only display the first variable.', duration=7000)
         if b_diffs_flag:
             return pn.Column(s_title,
                              pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_final.hvplot.bar(
@@ -1072,8 +1143,33 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
             df_stats = df_plot.mean().to_frame()
         elif stat_choice == 'Minimum':
             df_stats = df_plot.min().to_frame()
-        else:
+        elif stat_choice == 'Maximum':
             df_stats = df_plot.max().to_frame()
+        # want an exceedance probability
+        else:
+            i_exceedance_prob = int(stat_choice.split('%')[0])
+
+            df_exceed = pd.DataFrame(index=df_plot.reset_index().index)
+            # add exceedance probabilities
+            i_n = df_plot.shape[0]
+            ld_probabilities = [m / (i_n + 1) * 100 for m in range(i_n, 0, -1)]
+            df_exceed['exceedance_probability'] = ld_probabilities
+
+            for var in keeplist:
+                if var != 'Date':
+                    l_sorted = df_plot[var].sort_values().reset_index(drop=True)
+                    df_exceed[var] = l_sorted
+
+            # if hte probability has already been calculated
+            df_exceed = df_exceed.set_index('exceedance_probability')
+            if i_exceedance_prob in df_exceed.index:
+                df_stats = df_exceed.loc[i_exceedance_prob].to_frame()
+
+            # need to interpolate
+            else:
+                df_exceed.loc[i_exceedance_prob] = pd.Series(dtype='float32')
+                df_exceed.interpolate(method='index', inplace=True)
+                df_stats = df_exceed.loc[i_exceedance_prob].to_frame()
     # chose a partial year
     else:
         # pull out start and stop months and then create a list of all the months in between
@@ -1102,8 +1198,33 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
             df_stats = df_plot.mean().to_frame()
         elif stat_choice == 'Minimum':
             df_stats = df_plot.min().to_frame()
-        else:
+        elif stat_choice == 'Maximum':
             df_stats = df_plot.max().to_frame()
+        # want an exceedance probability
+        else:
+            i_exceedance_prob = int(stat_choice.split('%')[0])
+
+            df_exceed = pd.DataFrame(index=df_plot.reset_index().index)
+            # add exceedance probabilities
+            i_n = df_plot.shape[0]
+            ld_probabilities = [m / (i_n + 1) * 100 for m in range(i_n, 0, -1)]
+            df_exceed['exceedance_probability'] = ld_probabilities
+
+            for var in keeplist:
+                if var != 'Date':
+                    l_sorted = df_plot[var].sort_values().reset_index(drop=True)
+                    df_exceed[var] = l_sorted
+
+            # if hte probability has already been calculated
+            df_exceed = df_exceed.set_index('exceedance_probability')
+            if i_exceedance_prob in df_exceed.index:
+                df_stats = df_exceed.loc[i_exceedance_prob].to_frame()
+
+            # need to interpolate
+            else:
+                df_exceed.loc[i_exceedance_prob] = pd.Series(dtype='float32')
+                df_exceed.interpolate(method='index', inplace=True)
+                df_stats = df_exceed.loc[i_exceedance_prob].to_frame()
 
     # calculate bound, pick colors, and plot for all data above
     # Set upper and lower bounds
@@ -1224,8 +1345,36 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice, stat_choice, c
         df_plot = df_grouped.mean()
     elif stat_choice == 'Minimum':
         df_plot = df_grouped.min()
-    else:
+    elif stat_choice == 'Maximum':
         df_plot = df_grouped.max()
+    # want an exceedance probability
+    else:
+        i_exceedance_prob = int(stat_choice.split('%')[0])
+        # data frame to hold the values to plot
+        df_plot = pd.DataFrame(index=list(range(1,13)))
+        df_plot.index.name = 'Month'
+        for month, df_month in df_grouped:
+            df_exceed = pd.DataFrame(index=df_month.reset_index().index)
+            # add exceedance probabilities
+            i_n = df_month.shape[0]
+            ld_probabilities = [m / (i_n + 1) * 100 for m in range(i_n, 0, -1)]
+            df_exceed['exceedance_probability'] = ld_probabilities
+
+            for var in keeplist:
+                if var != 'Month':
+                    l_sorted = df_month[var].sort_values().reset_index(drop=True)
+                    df_exceed[var] = l_sorted
+
+            # if hte probability has already been calculated
+            df_exceed = df_exceed.set_index('exceedance_probability')
+            if i_exceedance_prob in df_exceed.index:
+                df_plot.loc[month, df_exceed.columns] = df_exceed.loc[i_exceedance_prob]
+
+            # need to interpolate
+            else:
+                df_exceed.loc[i_exceedance_prob] = pd.Series(dtype='float32')
+                df_exceed.interpolate(method='index', inplace=True)
+                df_plot.loc[month, df_exceed.columns] = df_exceed.loc[i_exceedance_prob]
 
     # reorder to be in water year
     df_plot = df_plot.reindex(index=[10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9])
@@ -1239,6 +1388,7 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice, stat_choice, c
         return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
             x='Month',
             min_height=600,
+            xlabel='Month',
             ylabel=stat_choice + ' ' + unit_choice,
             grid=True
         ),
@@ -1248,6 +1398,7 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice, stat_choice, c
         return pn.Column(pn.pane.HoloViews(df_plot.hvplot(
             x='Month',
             min_height=600,
+            xlabel='Month',
             ylabel=stat_choice + ' ' + unit_choice,
             grid=True
         ),

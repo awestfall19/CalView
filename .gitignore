@@ -1,6 +1,8 @@
 .idea/
 build/
+dist/
 __pycache__/
+*.exe
 *.pkl
 *.dss
 *.zip
