@@ -121,7 +121,11 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
                         ylabel=c_field_list[s_no_unit_var],
                         xlabel='Date',
                         grid=True,
-                        min_height=500
+                        min_height=500,
+                        yformatter=CustomJSTickFormatter(code="""
+                                                    var labels = %s;
+                                                    return labels[tick] || tick;
+                                                """ % c_no_unit_names[s_no_unit_var])
                     ), sizing_mode='stretch_width', linked_axes=False),
                     pn.pane.DataFrame(df_plot, index=False, max_height=500))
             else:
@@ -156,7 +160,11 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
                     ylabel=c_field_list[s_no_unit_var],
                     xlabel='Date',
                     grid=True,
-                    min_height=200
+                    min_height=200,
+                    yformatter=CustomJSTickFormatter(code="""
+                                                var labels = %s;
+                                                return labels[tick] || tick;
+                                            """ % c_no_unit_names[s_no_unit_var])
                 ), sizing_mode='stretch_width', linked_axes=False),
                 pn.pane.DataFrame(df_plot, index=False, max_height=500))
         else:
@@ -168,10 +176,6 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
                     xlabel='Date',
                     grid=True,
                     min_height=600,
-                    yformatter=CustomJSTickFormatter(code="""
-                                    var labels = %s;
-                                    return labels[tick] || tick;
-                                """ % c_no_unit_names[s_no_unit_var])
                 ), sizing_mode='stretch_width', linked_axes=False),
                 pn.pane.HoloViews(df_plot.hvplot.scatter(
                     x='Date',
