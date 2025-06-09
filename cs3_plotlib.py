@@ -60,7 +60,7 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
             if b_no_unit_flag:
                 if b_diffs_flag:
                     pn.state.notifications.position = 'center-center'
-                    pn.state.notifications.warning('If more than one variable without units is selected, only the first will be displayed.', duration=7000)
+                    pn.state.notifications.warning('If more than one variable without units of TAF/CFS is selected, only the first will be displayed.', duration=7000)
                 var_list_final.remove(var)
                 continue
             b_no_unit_flag = True
