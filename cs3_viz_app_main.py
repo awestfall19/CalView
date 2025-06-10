@@ -151,7 +151,7 @@ def add_run_names_widget(event):
                 dss_run_file_label = pn.pane.Markdown("### File name: " + file)
 
                 comparison_check = pn.widgets.Checkbox(name='Comparison scenario')
-                dss_run_name = pn.widgets.TextInput(width=500, placeholder='Enter name for file')
+                dss_run_name = pn.widgets.TextInput(max_width=500, placeholder='Enter name for file')
                 dss_run_name_tooltip = pn.widgets.TooltipIcon(value='Enter the name you want displayed for this run.')
 
                 run_name_column.append(dss_run_file_label)
