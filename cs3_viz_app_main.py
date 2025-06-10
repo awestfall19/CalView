@@ -82,7 +82,7 @@ def update_dss_file_widget(event):
                 name='Select CalSim output DSS file for new run or pickle file for previous run',
                 file_pattern = "*.dss",
                 only_files=True,
-                max_width=900,
+                max_width=1000,
                 root_directory=os.path.abspath(os.sep)
             )
         else:
@@ -92,7 +92,7 @@ def update_dss_file_widget(event):
                 name='Select CalSim output DSS file for new run or pickle file for previous run',
                 file_pattern="*.pkl",
                 only_files=True,
-                max_width=900,
+                max_width=1000,
                 root_directory=os.path.abspath(os.sep)
             )
 
@@ -843,7 +843,7 @@ dss_file = pn.widgets.FileSelector(
     name='Select CalSim output DSS file for new run or pickle file for previous run',
     file_pattern = "*.dss",
     only_files=True,
-    max_width=900,
+    max_width=1000,
     root_directory=os.path.abspath(os.sep)
 )
 
