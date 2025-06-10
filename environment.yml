@@ -1,15 +1,15 @@
 name: calview
 
 dependencies:
-     - python=3.10
-     - numpy=1.26
+     - python=3.11
+     - numpy=1.26.4
      - pandas
      - openpyxl
-     - panel
+     - panel>=1.7.1
      - holoviews
      - hvplot
-     - bokeh
-     - pyinstaller
+     - bokeh>=3.7.3
+     - pyinstaller>=6.14.0
      - pip
      - pip:
           - pydsstools
