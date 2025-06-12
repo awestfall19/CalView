@@ -7,6 +7,7 @@
 # for a list of dependencies which will need to be installed
 # in the environment you use for this script.
 # -------------------------------------------------------------------
+import pandas as pd
 
 # Import data handling functions from our local module
 from csdss_readlib_fullfile import file_reader, pickler, load_pickles, get_trend_fields
@@ -778,6 +779,25 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
                             s_comparison=s_comparison,
                             s_stat=monthly_stat_sel)
 
+    # metadata for meta data tab
+    run_names = {scen: c_default_units[scen] for scen in scenario_names}
+    df_run_names = pd.DataFrame.from_dict(run_names, orient='index', columns=['File Name'])
+    df_run_names.index.names = ['Run Name']
+
+    o_scen_names_title = pn.pane.Markdown("# Files and names")
+
+    df_field_names = pd.DataFrame.from_dict(c_field_list, orient='index', columns=['Description'])
+    df_field_names.index.name = 'Field'
+
+    o_field_names_title = pn.pane.Markdown("# Fields and descriptions")
+
+    o_metadata = pn.Column(
+        o_scen_names_title,
+        pn.pane.DataFrame(df_run_names, max_width=600),
+        o_field_names_title,
+        pn.pane.DataFrame(df_field_names, max_width=600)
+    )
+
     #Add selectors to header row in template and refresh objects
     header.append(scen_selector)
     header.append(var_selector)
@@ -807,7 +827,9 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
         ('Timeseries', timeseries_plots),
         ('Time-Aggregated', grouped_plots),
         ('Exceedance', exceedance_plots),
-        ('Monthly Pattern', monthly_plots))
+        ('Monthly Pattern', monthly_plots),
+        ('Metadata', o_metadata)
+    )
 
     tabs_row.append(tabs)
     tabs_row.param.trigger("objects")

@@ -297,5 +297,9 @@ def file_reader(runs: list[list], c_field_list, s_comparison):
 
     # add s_comparison to c_default_units so we have it stored
     c_default_units['comparison scenario'] = s_comparison
+    # add the run names in
+    for run_name, file_name in runs:
+        c_default_units[run_name] = path.basename(file_name)
+
 
     return append_list, baseline_stack, c_default_units, c_field_list_final
