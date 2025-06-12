@@ -130,7 +130,7 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
                 pn.pane.HoloViews(df_plot.hvplot.scatter(
                     x='Date',
                     y=no_unit_keeplist,
-                    ylabel=c_field_list[s_no_unit_var],
+                    ylabel=c_default_units[s_no_unit_var] if c_default_units[s_no_unit_var] != 'NONE' else c_field_list[s_no_unit_var],
                     xlabel='Date',
                     group_label='',
                     grid=True,
@@ -153,7 +153,7 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
                 pn.pane.HoloViews(df_plot.hvplot.scatter(
                     x='Date',
                     y=no_unit_keeplist,
-                    ylabel=c_field_list[s_no_unit_var],
+                    ylabel=c_default_units[s_no_unit_var] if c_default_units[s_no_unit_var] != 'NONE' else c_field_list[s_no_unit_var],
                     xlabel='Date',
                     group_label='',
                     grid=True,
@@ -175,7 +175,7 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
                 pn.pane.HoloViews(df_plot.hvplot.scatter(
                     x='Date',
                     y=no_unit_keeplist,
-                    ylabel=c_field_list[s_no_unit_var],
+                    ylabel=c_default_units[s_no_unit_var] if c_default_units[s_no_unit_var] != 'NONE' else c_field_list[s_no_unit_var],
                     xlabel='Date',
                     group_label='',
                     grid=True,

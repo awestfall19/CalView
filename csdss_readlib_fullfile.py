@@ -52,7 +52,7 @@ def pickler(append_list, baseline_stack, c_default_units, c_field_list):
 
     # Calc diffs for the alts vs baseline
     # columns that shouldn't be subtracted
-    li_wyt_cols = [index+num_fixed for index, colname in enumerate(df_all_data.iloc[:, num_fixed:]) if c_default_units[colname] not in ['CFS', 'TAF']]
+    li_wyt_cols = [index+num_fixed for index, colname in enumerate(df_all_data.iloc[:, num_fixed:]) if c_default_units[colname] == 'NONE']
     li_fixed_cols_indices = list(range(0, num_fixed)) + li_wyt_cols
     df_fixed_cols = df_all_data.iloc[:, li_fixed_cols_indices]
 
@@ -221,7 +221,6 @@ def single_file_pull(dss_file, c_target_ts_list, scenario_name):
     for t, ts in enumerate(list(c_target_ts_list_final.keys())):
         if isinstance(ts_list[t].values[0], np.float32):
             df_ts[ts] = ts_list[t].values.astype('float64')
-            print(ts)
         else:
             df_ts[ts] = ts_list[t].values
 
@@ -307,3 +306,19 @@ def file_reader(runs: list[list], c_field_list, s_comparison):
 
 
     return append_list, baseline_stack, c_default_units, c_field_list_final
+
+
+def calculated_fields():
+    c_fields_for_calculated = {
+        'Total System Storage SWP and CVP': 'S_TRNTY+S_SHSTA+S_OROVL+S_FOLSM+S_SLUIS_CVP+S_SLUIS_SWP',
+        'Total Exports SWP and CVP': 'C_CAA003_SWP+C_DMC003+C_CAA003_CVP',
+        'Total San Luis Storage SWP and CVP': 'S_SLUIS_CVP+S_SLUIS_SWP',
+        'Flow Shortage on Sac Reg for Salinity': 'MAX(MAX(RSREQSACDV,JPREQSACDV,EMREQSACDV,COREQSACDV)-(C400+C157),0)',
+        'Flow Shortage on X2 Delta Req Outflow': 'MAX(MRDO_FINALDV-C406,0)',
+        'MRDO_SHORT': 'MRDO_FINALDV - NDOI_MIN',
+        'Combined Madera and Friant-Kern Canals Diversion': 'D_MLRTN_FRK000 + D_MLRTN_MDC006',
+        'Stanislaus River Delivery - Oakdale North / SSJID 1+2': '??',
+        'CVP Delivery Total': 'DEL_CVP_TOTAL_N + DEL_CVP_TOTAL_S',
+        'CVP Delivery PMI N (w CCWD)': 'DEL_CVP_PMI_N + D420',
+        'CVP Delivery North (w CCWD)': 'DEL_CVP_TOTAL_N - DEL_CVP_PMI_N + DEL_CVP_PMI_N_WAMR + D420'
+    }
