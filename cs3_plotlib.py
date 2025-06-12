@@ -944,7 +944,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot
     if s_comparison in scenario_list:
         scenario_list.remove(s_comparison)
-        scenario_list.append(s_comparison)
+        scenario_list.insert(0, s_comparison)
 
     # check if comparison scen is in the data frame
     # if it's not, then we are creating the differences plot and dont want to include comparison scen
@@ -1403,7 +1403,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     # pull out how many times we will need to duplicate this list
     i_full_list, i_remainder_list = divmod(df_stats.shape[0], len(ls_colors_to_use))
     ls_colors_to_use = ls_colors_to_use * i_full_list + ls_colors_to_use[:i_remainder_list]
-    df_stats['Color'] = ls_colors_to_use
+    df_stats['Color'] = ls_colors_to_use[::-1]
 
     # add horizontal line if we are doing the differences plot
     if b_diffs_flag:
