@@ -5,6 +5,7 @@ import panel as pn
 import holoviews as hv
 from panel.io import hold
 from bokeh.models import CustomJSTickFormatter
+import time
 from bokeh.models import WheelZoomTool
 from csdss_readlib_fullfile import file_reader, pickler, load_pickles, get_trend_fields
 
@@ -12,7 +13,7 @@ def get_vars_list(ls_vars, s_default):
     return [string for string in ls_vars if s_default in string]
 
 def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s_comparison, c_field_list):
-
+    print(time.time())
     df_all_plot = df_all.copy(deep=True)
     df_all_plot.reset_index(inplace=True, drop=True)
     durations = [date.day for date in df_all_plot['Date']]
@@ -98,6 +99,9 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
             keeplist.append(name)
 
     df_plot = df_wide.drop([var for var in df_wide if var not in keeplist])
+
+    # round to one decimal place
+    df_plot=df_plot.round(1)
 
     keeplist.remove('Date')
     if b_no_unit_flag:
@@ -201,7 +205,7 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
 def plot_time_group(scenario_list, var_list, unit_choice, df_all,
                     c_default_units, period_choice, s_comparison,
                     c_field_list, li_wyt_selected, b_wyt_period_year, li_wyt_period_months):
-
+    print(time.time())
     df_all_plot = df_all.copy(deep=True)
     df_all_plot.reset_index(inplace=True, drop=True)
     durations = [date.day for date in df_all_plot['Date']]
@@ -336,6 +340,9 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         df_grouped = df_wide.groupby(by=[period_choice]).agg(agg_func)
         df_plot = df_grouped[keeplist]
 
+        # round to one decimal place
+        df_plot = df_plot.round(1)
+
         # add horizontal line if we are doing the differences plot
         if b_diffs_flag:
             return pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
@@ -405,6 +412,10 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 
             # get rid of other columns we dont need
             df_plot = df_grouped[keeplist]
+
+        # round to one decimal place
+        df_plot = df_plot.round(1)
+
         s_title = "## " + s_wyt_col + " "
 
         c_no_unit_names = {
@@ -460,6 +471,10 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         # this shouldn't make a difference since it will be one per month but it makes it match the rest
         df_grouped = df_wide.groupby(by=['DY']).agg(agg_func)
         df_plot = df_grouped[keeplist]
+
+        # round to one decimal place
+        df_plot = df_plot.round(1)
+
         c_num_to_month = {1: "January", 2: "February", 3: "March", 4: "April",
                           5: "May", 6: "June", 7: "July", 8: "August",
                           9: "September", 10: "October", 11: "November", 12: "December"}
@@ -502,6 +517,9 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
             df_grouped = df_wide.groupby(by=['DY']).agg(agg_func)
         df_plot = df_grouped[keeplist]
 
+        # round to one decimal place
+        df_plot = df_plot.round(1)
+
         # add horizontal line if we are doing the differences plot
         if b_diffs_flag:
             return pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
@@ -523,7 +541,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                          c_default_units, period_choice, s_comparison, c_field_list,
                          li_wyt_selected, b_wyt_period_year, li_wyt_period_months,
                          b_show_year):
-
+    print(time.time())
     df_all_plot = df_all.copy(deep=True)
     df_all_plot.reset_index(inplace=True, drop=True)
     durations = [date.day for date in df_all_plot['Date']]
@@ -677,6 +695,8 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 l_sorted = df_grouped[var].sort_values().reset_index(drop=True)
                 df_exceed[var] = l_sorted
 
+        # round to one decimal place
+        df_exceed = df_exceed.round(1)
 
         # add horizontal line if we are doing the differences plot
         if b_diffs_flag:
@@ -776,6 +796,9 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 l_sorted = df_grouped[var].sort_values().reset_index(drop=True)
                 df_exceed[var] = l_sorted
 
+        # round to one decimal place
+        df_exceed = df_exceed.round(1)
+
         s_title = "## " + s_wyt_col + " "
 
         c_no_unit_names = {
@@ -855,6 +878,9 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
             l_sorted = df_grouped[var].sort_values().reset_index(drop=True)
             df_exceed[var] = l_sorted
 
+        # round to one decimal place
+        df_exceed = df_exceed.round(1)
+
         c_num_to_month = {1: "January", 2: "February", 3: "March", 4: "April",
                           5: "May", 6: "June", 7: "July", 8: "August",
                           9: "September", 10: "October", 11: "November", 12: "December"}
@@ -920,6 +946,9 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
             l_sorted = df_grouped[var].sort_values().reset_index(drop=True)
             df_exceed[var] = l_sorted
 
+        # round to one decimal place
+        df_exceed = df_exceed.round(1)
+
         # add horizontal line if we are doing the differences plot
         if b_diffs_flag:
             return pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(color='black', line_width=1) * df_exceed.hvplot(
@@ -948,7 +977,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 def plot_bars(df_all, period_choice, var_list, scenario_list,
               unit_choice, stat_choice, c_default_units, s_comparison, c_field_list,
               li_wyt_selected, b_wyt_period_year, li_wyt_period_months):
-
+    print(time.time())
     df_all_plot = df_all.copy(deep=True)
     df_all_plot.reset_index(inplace=True, drop=True)
     durations = [date.day for date in df_all['Date']]
@@ -1235,6 +1264,10 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
                     df_temp = df_exceed.loc[i_exceedance_prob]
             df_final.loc[(99, s_scen), var_list_final[0]] = df_temp.values
 
+        # round to one decimal place
+        df_final = df_final.round(1)
+        df_plot = df_plot.round(1)
+
         s_title = "## " + s_wyt_col + " "
 
         c_no_unit_names = {
@@ -1393,6 +1426,10 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
                 df_exceed.interpolate(method='index', inplace=True)
                 df_stats = df_exceed.loc[i_exceedance_prob].to_frame()
 
+    # round to one decimal place
+    df_stats = df_stats.round(1)
+    df_plot = df_plot.round(1)
+
     # calculate bound, pick colors, and plot for all data above
     # Set upper and lower bounds
     if np.min(df_stats) > 0:
@@ -1442,6 +1479,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
 def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
                     stat_choice, c_default_units, s_comparison,
                     c_field_list, period_choice, li_wyt_selected):
+    print(time.time())
     df_all_plot = df_all.copy(deep=True)
     df_all_plot.reset_index(inplace=True, drop=True)
     durations = [date.day for date in df_all_plot['Date']]
@@ -1620,6 +1658,9 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
                 df_exceed.loc[i_exceedance_prob] = pd.Series(dtype='float32')
                 df_exceed.interpolate(method='index', inplace=True)
                 df_plot.loc[month, df_exceed.columns] = df_exceed.loc[i_exceedance_prob]
+    # round to one decimal
+    df_plot = df_plot.round(1)
+    df_wide = df_wide.round(1)
 
     # reorder to be in water year
     df_plot = df_plot.reindex(index=[10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9])

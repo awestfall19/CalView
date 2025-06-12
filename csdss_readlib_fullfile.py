@@ -219,7 +219,11 @@ def single_file_pull(dss_file, c_target_ts_list, scenario_name):
 
     df_ts = pd.DataFrame(index=times)
     for t, ts in enumerate(list(c_target_ts_list_final.keys())):
-        df_ts[ts] = ts_list[t].values
+        if isinstance(ts_list[t].values[0], np.float32):
+            df_ts[ts] = ts_list[t].values.astype('float64')
+            print(ts)
+        else:
+            df_ts[ts] = ts_list[t].values
 
     df_ts.insert(0, 'DY', dy)
     df_ts.insert(0, 'WY', wy)
