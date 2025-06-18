@@ -275,11 +275,11 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         df_septembers = df_all_plot[df_all_plot['Month'] == 9]
 
         # pull the years and scenarios that match the selected wyts
-        df_wy_to_use = df_septembers[df_septembers[s_wyt_col].isin(li_wyt_selected)][['Scenario', 'WY', s_wyt_col]]
+        df_wy_to_use = df_septembers[df_septembers[s_wyt_col].isin(li_wyt_selected)][['Scenario', 'OctSeptYear', s_wyt_col]]
         # dictionary to hold {(scenario, WY): WYT}
         c_wy_to_wyt = {}
         for index, row in df_wy_to_use.iterrows():
-            c_wy_to_wyt[(row['Scenario'], row['WY'])] = row[s_wyt_col]
+            c_wy_to_wyt[(row['Scenario'], row['OctSeptYear'])] = row[s_wyt_col]
 
         # Assign wyt column to be the final wyt
         def wy_to_wyt(wyt_dict, scen, year):
@@ -288,11 +288,11 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
             except:
                 return np.nan
 
-        df_all_plot[s_wyt_col] = df_all_plot.apply(lambda row: wy_to_wyt(c_wy_to_wyt, row['Scenario'], row['WY']), axis=1)
+        df_all_plot[s_wyt_col] = df_all_plot.apply(lambda row: wy_to_wyt(c_wy_to_wyt, row['Scenario'], row['OctSeptYear']), axis=1)
 
     # Sortable, filter to target scenarios and vars
     df_wide = pd.DataFrame(df_all_plot['Date'].unique(), columns=['Date'])
-    df_wide[['WY', 'DY', 'Month']] = df_all_plot.loc[df_all_plot['Scenario'] == scenario_list[0]][['WY', 'DY','Month']].reset_index(drop=True)
+    df_wide[['OctSeptYear', 'JanDecYear', 'Month']] = df_all_plot.loc[df_all_plot['Scenario'] == scenario_list[0]][['OctSeptYear', 'JanDecYear','Month']].reset_index(drop=True)
     df_wide.reset_index(inplace=True, drop=True)
 
     #keeplist = ['Date']
@@ -327,9 +327,9 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 
     # grouping by period choice
     # if we chose a year option
-    if period_choice in ["WY", "DY", "CY"]:
-        if period_choice == "CY":
-            df_wide['CY'] = np.where(df_wide.Month >= 3, df_wide.DY, df_wide.DY-1)
+    if period_choice in ["OctSeptYear", "JanDecYear", "MarFebYear"]:
+        if period_choice == "MarFebYear":
+            df_wide['MarFebYear'] = np.where(df_wide.Month >= 3, df_wide['JanDecYear'], df_wide['JanDecYear']-1)
         df_timecounts = df_wide.groupby(by=[period_choice]).count()
         droplist = df_timecounts[df_timecounts['Date'] < 12].index
         df_wide = df_wide[df_wide[period_choice].isin(droplist) == False]
@@ -370,15 +370,15 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         # if we want to look at water year totals
         if b_wyt_period_year:
             # drop incomplete years
-            df_timecounts = df_wide.groupby(by=['WY']).count()
+            df_timecounts = df_wide.groupby(by=['OctSeptYear']).count()
             droplist = df_timecounts[df_timecounts['Date'] < 12].index
-            df_wide = df_wide[df_wide['WY'].isin(droplist) == False]
+            df_wide = df_wide[df_wide['OctSeptYear'].isin(droplist) == False]
 
             # Can't sum dates: drop
             df_wide = df_wide.drop('Date', axis=1)
 
             # get the year totals/averages
-            df_grouped = df_wide.groupby(by=['WY']).agg(agg_func)
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
 
             # assign the WYt to be the correct one
             df_grouped[keeplist[:len(scenario_list)]] = df_grouped[keeplist[:len(scenario_list)]]/12
@@ -395,15 +395,15 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
             df_wide = df_wide[df_wide['Month'].isin(li_wyt_period_months)]
 
             # drop incomplete years
-            df_timecounts = df_wide.groupby(by=['WY']).count()
+            df_timecounts = df_wide.groupby(by=['OctSeptYear']).count()
             droplist = df_timecounts[df_timecounts['Date'] < len(li_wyt_period_months)].index
-            df_wide = df_wide[df_wide['WY'].isin(droplist) == False]
+            df_wide = df_wide[df_wide['OctSeptYear'].isin(droplist) == False]
 
             # Can't sum dates: drop
             df_wide = df_wide.drop('Date', axis=1)
 
             # get the year totals/avgs
-            df_grouped = df_wide.groupby(by=['WY']).agg(agg_func)
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
 
             # assign the WYt to be the correct one
             df_grouped[keeplist[:len(scenario_list)]] = df_grouped[keeplist[:len(scenario_list)]] / len(li_wyt_period_months)
@@ -467,7 +467,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         # Can't sum dates: drop
         df_wide = df_wide.drop('Date', axis=1)
         # this shouldn't make a difference since it will be one per month but it makes it match the rest
-        df_grouped = df_wide.groupby(by=['DY']).agg(agg_func)
+        df_grouped = df_wide.groupby(by=['JanDecYear']).agg(agg_func)
         df_plot = df_grouped[keeplist]
 
         # round to one decimal place
@@ -510,9 +510,9 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 
         # if we cross a cal year change, group by WY
         if period_choice in ['11-3', '10-1', '12-2']:
-            df_grouped = df_wide.groupby(by=['WY']).agg(agg_func)
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
         else:
-            df_grouped = df_wide.groupby(by=['DY']).agg(agg_func)
+            df_grouped = df_wide.groupby(by=['JanDecYear']).agg(agg_func)
         df_plot = df_grouped[keeplist]
 
         # round to one decimal place
@@ -612,11 +612,11 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         df_septembers = df_all_plot[df_all_plot['Month'] == 9]
 
         # pull the years and scenarios that match the selected wyts
-        df_wy_to_use = df_septembers[df_septembers[s_wyt_col].isin(li_wyt_selected)][['Scenario', 'WY', s_wyt_col]]
+        df_wy_to_use = df_septembers[df_septembers[s_wyt_col].isin(li_wyt_selected)][['Scenario', 'OctSeptYear', s_wyt_col]]
         # dictionary to hold {(scenario, WY): WYT}
         c_wy_to_wyt = {}
         for index, row in df_wy_to_use.iterrows():
-            c_wy_to_wyt[(row['Scenario'], row['WY'])] = row[s_wyt_col]
+            c_wy_to_wyt[(row['Scenario'], row['OctSeptYear'])] = row[s_wyt_col]
 
         # Assign wyt column to be the final wyt
         def wy_to_wyt(wyt_dict, scen, year):
@@ -625,11 +625,11 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
             except:
                 return np.nan
 
-        df_all_plot[s_wyt_col] = df_all_plot.apply(lambda row: wy_to_wyt(c_wy_to_wyt, row['Scenario'], row['WY']), axis=1)
+        df_all_plot[s_wyt_col] = df_all_plot.apply(lambda row: wy_to_wyt(c_wy_to_wyt, row['Scenario'], row['OctSeptYear']), axis=1)
 
     # Sortable, filter to target scenarios and vars
     df_wide = pd.DataFrame(df_all_plot['Date'].unique(), columns=['Date'])
-    df_wide[['WY', 'DY', 'Month']] = df_all_plot.loc[df_all_plot['Scenario'] == scenario_list[0]][['WY', 'DY','Month']].reset_index(drop=True)
+    df_wide[['OctSeptYear', 'JanDecYear', 'Month']] = df_all_plot.loc[df_all_plot['Scenario'] == scenario_list[0]][['OctSeptYear', 'JanDecYear','Month']].reset_index(drop=True)
     df_wide.reset_index(inplace=True, drop=True)
 
     # This will allow us to drop the columns used for sorting / aggregating once the
@@ -663,10 +663,10 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
     # Remove incomplete years (default CS3 runs typically based on WY)
     # Grouping by calendar year or contract year (Mar-Feb) leaves partial
     # years @ start/end of run
-    # period_choice = 'DY' #dbg only
-    if period_choice in ['WY', 'DY', 'CY']:
-        if period_choice == 'CY':
-            df_wide['CY'] = np.where(df_wide.Month >= 3, df_wide.DY, df_wide.DY - 1)
+    # period_choice = 'JanDecYear' #dbg only
+    if period_choice in ['OctSeptYear', 'JanDecYear', 'MarFebYear']:
+        if period_choice == 'MarFebYear':
+            df_wide['MarFebYear'] = np.where(df_wide.Month >= 3, df_wide['JanDecYear'], df_wide['JanDecYear'] - 1)
         df_timecounts = df_wide.groupby(by=[period_choice]).count()
         droplist = df_timecounts[df_timecounts['Date'] < 12].index
         df_wide = df_wide[df_wide[period_choice].isin(droplist) == False]
@@ -733,15 +733,15 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
             # if we want to look at water year totals
         if b_wyt_period_year:
             # drop incomplete years
-            df_timecounts = df_wide.groupby(by=['WY']).count()
+            df_timecounts = df_wide.groupby(by=['OctSeptYear']).count()
             droplist = df_timecounts[df_timecounts['Date'] < 12].index
-            df_wide = df_wide[df_wide['WY'].isin(droplist) == False]
+            df_wide = df_wide[df_wide['OctSeptYear'].isin(droplist) == False]
 
             # Can't sum dates: drop
             df_wide = df_wide.drop('Date', axis=1)
 
             # get the year totals/avgs
-            df_grouped = df_wide.groupby(by=['WY']).agg(agg_func)
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
 
             df_exceed = pd.DataFrame(index=list(range(df_grouped.shape[0])))
 
@@ -769,15 +769,15 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
             df_wide = df_wide[df_wide['Month'].isin(li_wyt_period_months)]
 
             # drop incomplete years
-            df_timecounts = df_wide.groupby(by=['WY']).count()
+            df_timecounts = df_wide.groupby(by=['OctSeptYear']).count()
             droplist = df_timecounts[df_timecounts['Date'] < len(li_wyt_period_months)].index
-            df_wide = df_wide[df_wide['WY'].isin(droplist) == False]
+            df_wide = df_wide[df_wide['OctSeptYear'].isin(droplist) == False]
 
             # Can't sum dates: drop
             df_wide = df_wide.drop('Date', axis=1)
 
             # get the year totals/avgs
-            df_grouped = df_wide.groupby(by=['WY']).agg(agg_func)
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
 
             df_exceed = pd.DataFrame(index=list(range(df_grouped.shape[0])))
 
@@ -859,7 +859,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 
         # Can't sum dates: drop
         df_wide = df_wide.drop('Date', axis=1)
-        df_grouped = df_wide.groupby(by=['DY']).agg(agg_func)
+        df_grouped = df_wide.groupby(by=['JanDecYear']).agg(agg_func)
 
         df_exceed = pd.DataFrame(index=list(range(df_grouped.shape[0])))
 
@@ -925,9 +925,9 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 
         # if we cross a cal year change, group by WY
         if period_choice in ['11-3', '10-1', '12-2']:
-            df_grouped = df_wide.groupby(by=['WY']).agg(agg_func)
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
         else:
-            df_grouped = df_wide.groupby(by=['DY']).agg(agg_func)
+            df_grouped = df_wide.groupby(by=['JanDecYear']).agg(agg_func)
 
         df_exceed = pd.DataFrame(index=list(range(df_grouped.shape[0])))
 
@@ -1047,11 +1047,11 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
         df_septembers = df_all_plot[df_all_plot['Month'] == 9]
 
         # pull the years and scenarios that match the selected wyts
-        df_wy_to_use = df_septembers[df_septembers[s_wyt_col].isin(li_wyt_selected)][['Scenario', 'WY', s_wyt_col]]
+        df_wy_to_use = df_septembers[df_septembers[s_wyt_col].isin(li_wyt_selected)][['Scenario', 'OctSeptYear', s_wyt_col]]
         # dictionary to hold {(scenario, WY): WYT}
         c_wy_to_wyt = {}
         for index, row in df_wy_to_use.iterrows():
-            c_wy_to_wyt[(row['Scenario'], row['WY'])] = row[s_wyt_col]
+            c_wy_to_wyt[(row['Scenario'], row['OctSeptYear'])] = row[s_wyt_col]
 
         # Assign wyt column to be the final wyt
         def wy_to_wyt(wyt_dict, scen, year):
@@ -1060,11 +1060,11 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
             except:
                 return np.nan
 
-        df_all_plot[s_wyt_col] = df_all_plot.apply(lambda row: wy_to_wyt(c_wy_to_wyt, row['Scenario'], row['WY']), axis=1)
+        df_all_plot[s_wyt_col] = df_all_plot.apply(lambda row: wy_to_wyt(c_wy_to_wyt, row['Scenario'], row['OctSeptYear']), axis=1)
 
     # Sortable, filter to target scenarios and vars
     df_wide = pd.DataFrame(df_all_plot['Date'].unique(), columns=['Date'])
-    df_wide[['WY', 'DY', 'Month']] = df_all_plot.loc[df_all_plot['Scenario'] == scenario_list[0]][['WY', 'DY', 'Month']].reset_index(drop=True)
+    df_wide[['OctSeptYear', 'JanDecYear', 'Month']] = df_all_plot.loc[df_all_plot['Scenario'] == scenario_list[0]][['OctSeptYear', 'JanDecYear', 'Month']].reset_index(drop=True)
     df_wide.reset_index(inplace=True, drop=True)
 
     keeplist = []
@@ -1089,9 +1089,9 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
             keeplist.append(col_names[0])
 
     # ------- Agg ops below -------------
-    if period_choice in ['WY', 'DY', 'CY']:
-        if period_choice == "CY":
-            df_wide['CY'] = np.where(df_wide.Month >= 3, df_wide.DY, df_wide.DY - 1)
+    if period_choice in ['OctSeptYear', 'JanDecYear', 'MarFebYear']:
+        if period_choice == "MarFebYear":
+            df_wide['MarFebYear'] = np.where(df_wide.Month >= 3, df_wide['JanDecYear'], df_wide['JanDecYear'] - 1)
         df_timecounts = df_wide.groupby(by=[period_choice]).count()
         droplist = df_timecounts[df_timecounts['Date'] < 12].index
         df_wide = df_wide[df_wide[period_choice].isin(droplist) == False]
@@ -1147,15 +1147,15 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
         # if we want to look at water year totals
         if b_wyt_period_year:
             # drop incomplete years
-            df_timecounts = df_wide.groupby(by=['WY']).count()
+            df_timecounts = df_wide.groupby(by=['OctSeptYear']).count()
             droplist = df_timecounts[df_timecounts['Date'] < 12].index
-            df_wide = df_wide[df_wide['WY'].isin(droplist) == False]
+            df_wide = df_wide[df_wide['OctSeptYear'].isin(droplist) == False]
 
             # Can't sum dates: drop
             df_wide = df_wide.drop('Date', axis=1)
 
             # get the year totals/avgs
-            df_grouped = df_wide.groupby(by=['WY']).agg(agg_func)
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
 
             # assign the WYt to be the correct one
             df_grouped[keeplist[:len(scenario_list)]] = df_grouped[keeplist[:len(scenario_list)]] / 12
@@ -1172,15 +1172,15 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
             df_wide = df_wide[df_wide['Month'].isin(li_wyt_period_months)]
 
             # drop incomplete years
-            df_timecounts = df_wide.groupby(by=['WY']).count()
+            df_timecounts = df_wide.groupby(by=['OctSeptYear']).count()
             droplist = df_timecounts[df_timecounts['Date'] < len(li_wyt_period_months)].index
-            df_wide = df_wide[df_wide['WY'].isin(droplist) == False]
+            df_wide = df_wide[df_wide['OctSeptYear'].isin(droplist) == False]
 
             # Can't sum dates: drop
             df_wide = df_wide.drop('Date', axis=1)
 
             # get the year totals/avgs
-            df_grouped = df_wide.groupby(by=['WY']).agg(agg_func)
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
 
             # assign the WYt to be the correct one
             df_grouped[keeplist[:len(scenario_list)]] = df_grouped[keeplist[:len(scenario_list)]] / len(li_wyt_period_months)
@@ -1331,7 +1331,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     # Month chosen
     elif isinstance(period_choice, int):
         df_wide = df_wide[df_wide.Month == period_choice]
-        df_grouped = df_wide.groupby(by=['DY']).agg(agg_func)
+        df_grouped = df_wide.groupby(by=['JanDecYear']).agg(agg_func)
         df_plot = df_grouped[keeplist]
 
         # calculate chosen stat
@@ -1383,9 +1383,9 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
 
         # if we cross a cal year change, group by WY
         if period_choice in ['11-3', '10-1', '12-2']:
-            df_grouped = df_wide.groupby(by=['WY']).agg(agg_func)
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
         else:
-            df_grouped = df_wide.groupby(by=['DY']).agg(agg_func)
+            df_grouped = df_wide.groupby(by=['JanDecYear']).agg(agg_func)
             
         df_plot = df_grouped[keeplist]
 
@@ -1548,11 +1548,11 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
         df_septembers = df_all_plot[df_all_plot['Month'] == 9]
 
         # pull the years and scenarios that match the selected wyts
-        df_wy_to_use = df_septembers[df_septembers[s_wyt_col].isin(li_wyt_selected)][['Scenario', 'WY', s_wyt_col]]
+        df_wy_to_use = df_septembers[df_septembers[s_wyt_col].isin(li_wyt_selected)][['Scenario', 'OctSeptYear', s_wyt_col]]
         # dictionary to hold {(scenario, WY): WYT}
         c_wy_to_wyt = {}
         for index, row in df_wy_to_use.iterrows():
-            c_wy_to_wyt[(row['Scenario'], row['WY'])] = row[s_wyt_col]
+            c_wy_to_wyt[(row['Scenario'], row['OctSeptYear'])] = row[s_wyt_col]
 
         # Assign wyt column to be the final wyt
         def wy_to_wyt(wyt_dict, scen, year):
@@ -1561,7 +1561,7 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
             except:
                 return np.nan
 
-        df_all_plot[s_wyt_col] = df_all_plot.apply(lambda row: wy_to_wyt(c_wy_to_wyt, row['Scenario'], row['WY']), axis=1)
+        df_all_plot[s_wyt_col] = df_all_plot.apply(lambda row: wy_to_wyt(c_wy_to_wyt, row['Scenario'], row['OctSeptYear']), axis=1)
 
     # Sortable, filter to target scenarios and vars
     df_wide = pd.DataFrame(df_all_plot['Date'].unique(), columns=['Date'])

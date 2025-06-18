@@ -224,8 +224,8 @@ def single_file_pull(dss_file, c_target_ts_list, scenario_name):
         else:
             df_ts[ts] = ts_list[t].values
 
-    df_ts.insert(0, 'DY', dy)
-    df_ts.insert(0, 'WY', wy)
+    df_ts.insert(0, 'JanDecYear', dy)
+    df_ts.insert(0, 'OctSeptYear', wy)
     df_ts.insert(0, 'Month', months)
     df_ts.insert(0, 'Year', years)
     df_ts.insert(0, 'Scenario', scenario_name)

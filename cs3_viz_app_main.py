@@ -411,7 +411,7 @@ def create_plot_title(s_title, s_comparison='', s_period='', s_stat=''):
     """
     To create the titles for the plots that change when values are updated
     """
-    c_period_code_to_name = {"DY": "January-December", "WY": "October-September", "CY": "March-February",
+    c_period_code_to_name = {"JanDecYear": "January-December", "OctSeptYear": "October-September", "MarFebYear": "March-February",
                              1: "January", 2: "February", 3: "March", 4: "April",
                              5: "May", 6: "June", 7: "July", 8: "August",
                              9: "September", 10: "October", 11: "November", 12: "December",
@@ -511,7 +511,7 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
 
     period_selector = pn.widgets.Select(
         name='Period Selector',
-        groups={'Year': {"January-December": "DY", "October-September": "WY", "March-February": "CY"},
+        groups={'Year': {"January-December": "JanDecYear", "October-September": "OctSeptYear", "March-February": "MarFebYear"},
                 'Month': {"January": 1, "February": 2, "March": 3, "April": 4,
                           "May": 5, "June": 6, "July": 7, "August": 8,
                           "September": 9, "October": 10, "November": 11, "December": 12},
@@ -784,7 +784,7 @@ def create_widgets(scenario_names, c_field_list, df_all_data, c_default_units, d
     # metadata for meta data tab
     run_names = {scen: c_default_units[scen] for scen in scenario_names}
     df_run_names = pd.DataFrame.from_dict(run_names, orient='index', columns=['File Name'])
-    df_run_names.index.name = 'Run Name'
+    df_run_names.index.name = 'Scenario Name'
 
     o_scen_names_title = pn.pane.Markdown("# Files and names")
 
