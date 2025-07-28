@@ -9,7 +9,7 @@ from multiprocessing import Pool
 from os import path
 
 # num_fixed = # of columns that are the same in all cases
-num_fixed = 6
+num_fixed = 7
 
 def get_trend_fields():
     # dictionary to hold fields and description in the form {field: description}
@@ -52,7 +52,7 @@ def pickler(append_list, baseline_stack, c_default_units, c_field_list):
 
     # Calc diffs for the alts vs baseline
     # columns that shouldn't be subtracted
-    li_wyt_cols = [index+num_fixed for index, colname in enumerate(df_all_data.iloc[:, num_fixed:]) if c_default_units[colname] not in ['CFS', 'TAF']]
+    li_wyt_cols = [index+num_fixed for index, colname in enumerate(df_all_data.iloc[:, num_fixed:]) if c_default_units[colname] == 'NONE']
     li_fixed_cols_indices = list(range(0, num_fixed)) + li_wyt_cols
     df_fixed_cols = df_all_data.iloc[:, li_fixed_cols_indices]
 
@@ -191,9 +191,9 @@ def single_file_pull(dss_file, c_target_ts_list, scenario_name):
 
     # Convert CY to delivery (contract) year
     if startDate_1.month < 3:
-        dy = [startDate_1.year - 1]
+        cy = [startDate_1.year - 1]
     else:
-        dy = startDate_1.year
+        cy = startDate_1.year
 
     # Note loops starts at 1 not zero
     for i in range(1, len(ts_list[0].values)):
@@ -213,20 +213,20 @@ def single_file_pull(dss_file, c_target_ts_list, scenario_name):
             wy = np.append(wy, current_time.year)
 
         if current_time.month < 3:
-            dy = np.append(dy, current_time.year - 1)
+            cy = np.append(cy, current_time.year - 1)
         else:
-            dy = np.append(dy, current_time.year)
+            cy = np.append(cy, current_time.year)
 
     df_ts = pd.DataFrame(index=times)
     for t, ts in enumerate(list(c_target_ts_list_final.keys())):
-        df_ts[ts] = ts_list[t].values
+        if isinstance(ts_list[t].values[0], np.float32):
+            df_ts[ts] = ts_list[t].values.astype('float64')
+        else:
+            df_ts[ts] = ts_list[t].values
 
-    # Duplicate columns with other (cfs/taf) unit
-    durations = [t.day for t in
-                 times]  # list of month durations for our timeframe of interest
-
-    df_ts.insert(0, 'DY', dy)
-    df_ts.insert(0, 'WY', wy)
+    df_ts.insert(0, 'JanDecYear', years)
+    df_ts.insert(0, 'MarFebYear', cy)
+    df_ts.insert(0, 'OctSeptYear', wy)
     df_ts.insert(0, 'Month', months)
     df_ts.insert(0, 'Year', years)
     df_ts.insert(0, 'Scenario', scenario_name)
@@ -251,8 +251,8 @@ def file_reader(runs: list[list], c_field_list, s_comparison):
 
     """
     results = {}
-    c_default_units_all = pd.Series()
     c_field_list_final = c_field_list.copy()
+    c_default_units_all = {}
 
     multiprocess = False
 
@@ -265,8 +265,9 @@ def file_reader(runs: list[list], c_field_list, s_comparison):
 
             # make sure to remove ones that were not found
             c_field_list_final = {field: c_field_list_final[field] for field in c_field_list_final if field in c_target_ts_list}
+
             # add into dictionary to store
-            c_default_units_all[run[0]] = c_default_units
+            c_default_units_all.update(c_default_units)
             results[run[0]] = result
     else:
         # create pool
@@ -281,7 +282,7 @@ def file_reader(runs: list[list], c_field_list, s_comparison):
             c_field_list_final = {field: c_field_list_final[field] for field in c_field_list_final if field in c_target_ts_list}
 
             # add into dictionary to store
-            c_default_units_all[run[0]] = c_default_units
+            c_default_units_all.update(c_default_units)
             results[run[0]] = result
 
         # close the process pool
@@ -292,14 +293,88 @@ def file_reader(runs: list[list], c_field_list, s_comparison):
     append_list = []
     baseline_stack = []
 
+    # add calculated fields
+    for i in range(len(runs)):
+        results[runs[i][0]], c_field_list_final, c_default_units_all = calculated_fields(results[runs[i][0]], c_field_list_final, c_default_units_all)
+
     for i in range(len(runs)):
         append_list.append(results[runs[i][0]])
         baseline_stack.append(results[s_comparison])
     # print(f"Run time for pulling DSS data with multiprocessing = "
     #       f"{(time.time() - start_time)} seconds")
-    print(f'Removed {list(set(c_field_list.keys()) ^ set(c_field_list_final.keys()))} from field list.')
+    print(f'Added {list(set(c_field_list_final.keys()) - set(c_field_list.keys()))} to field list.')
+    print(f'Removed {list(set(c_field_list.keys()) - set(c_field_list_final.keys()))} from field list.')
 
     # add s_comparison to c_default_units so we have it stored
-    c_default_units['comparison scenario'] = s_comparison
+    c_default_units_all['comparison scenario'] = s_comparison
+    # add the run names in
+    for run_name, file_name in runs:
+        c_default_units_all[run_name] = path.basename(file_name)
 
-    return append_list, baseline_stack, c_default_units, c_field_list_final
+    return append_list, baseline_stack, c_default_units_all, c_field_list_final
+
+
+def calculated_fields(df_all, c_field_list, c_default_units):
+    # dictionary of what fields each calculated field needs
+    c_fields_for_calculated = {
+        'Total System Storage SWP and CVP': ['S_TRNTY', 'S_SHSTA', 'S_OROVL', 'S_FOLSM', 'S_SLUIS_CVP', 'S_SLUIS_SWP'],
+        'Total Exports SWP and CVP': ['C_CAA003_SWP', 'C_DMC003', 'C_CAA003_CVP'],
+        'Total San Luis Storage SWP and CVP': ['S_SLUIS_CVP', 'S_SLUIS_SWP'],
+        'Flow Shortage on Sac Reg for Salinity': ['RSREQSACDV', 'JPREQSACDV', 'EMREQSACDV', 'COREQSACDV', 'C_SAC041', 'SP_SAC083_YBP037'],
+        'Flow Shortage on X2 Delta Req Outflow': ['MRDO_FINALDV', 'NDOI'],
+        'MRDO_SHORT': ['MRDO_FINALDV', 'NDOI_MIN'],
+        'Combined Madera and Friant-Kern Canals Diversion': ['D_MLRTN_FRK000', 'D_MLRTN_MDC006'],
+        'Stanislaus River Delivery - Oakdale North / SSJID 1+2': ['D_STS059_OAK001', 'D_SSJ004_61_PA1', 'D_WDWRD_61_PA3', 'D_WTPDGT_61_NU2'],
+        'CVP Delivery Total': ['DEL_CVP_TOTAL_N', 'DEL_CVP_TOTAL_S'],
+        'CVP Delivery PMI N (w CCWD)': ['DEL_CVP_PMI_N', 'D420'],
+        'CVP Delivery North (w CCWD)': ['DEL_CVP_TOTAL_N', 'DEL_CVP_PMI_N', 'DEL_CVP_PMI_N_WAMR', 'D420']
+    }
+
+    # loop through the calculate fields and try anf add them
+    for calculated_field in list(c_fields_for_calculated.keys()):
+        # grab list of required fields
+        sl_needed_fields = c_fields_for_calculated[calculated_field]
+
+        # check if every needed field has been pulled
+        if set(sl_needed_fields).issubset(set(c_field_list.keys())):
+
+            # get the units
+            ls_units = [c_default_units[var] for var in sl_needed_fields]
+
+            # make sure all the units match
+            if len(set(ls_units)) > 1:
+                print('All units do not match for calculated variable: ', calculated_field)
+
+            # add the default units
+            c_default_units[calculated_field] = ls_units[0]
+
+            # add the new calculated variable to the field list dictionary
+            c_field_list[calculated_field] = calculated_field + ' (Calculated Field)'
+
+            # add the calculated field to the dataframe
+            match calculated_field:
+                case 'Total System Storage SWP and CVP':
+                    df_all[calculated_field] = df_all['S_TRNTY'] + df_all['S_SHSTA'] + df_all['S_OROVL'] + df_all['S_FOLSM'] + df_all['S_SLUIS_CVP'] + df_all['S_SLUIS_SWP']
+                case 'Total Exports SWP and CVP':
+                    df_all[calculated_field] = df_all['C_CAA003_SWP'] + df_all['C_DMC003'] + df_all['C_CAA003_CVP']
+                case 'Total San Luis Storage SWP and CVP':
+                    df_all[calculated_field] = df_all['S_SLUIS_CVP'] + df_all['S_SLUIS_SWP']
+                case 'Flow Shortage on Sac Reg for Salinity':
+                    df_all[calculated_field] = np.maximum(df_all[['RSREQSACDV', 'JPREQSACDV', 'EMREQSACDV', 'COREQSACDV']].max(axis=1) - (df_all['C_SAC041'] + df_all['SP_SAC083_YBP037']), 0)
+                case 'Flow Shortage on X2 Delta Req Outflow':
+                    df_all[calculated_field] = np.maximum(df_all['MRDO_FINALDV'] - df_all['NDOI'], 0)
+                case 'MRDO_SHORT':
+                    df_all[calculated_field] = df_all['MRDO_FINALDV'] - df_all['NDOI_MIN']
+                case 'Combined Madera and Friant-Kern Canals Diversion':
+                    df_all[calculated_field] = df_all['D_MLRTN_FRK000'] + df_all['D_MLRTN_MDC006']
+                case 'Stanislaus River Delivery - Oakdale North / SSJID 1+2':
+                    df_all[calculated_field] = df_all['D_STS059_OAK001'] + df_all['D_SSJ004_61_PA1'] + df_all['D_WDWRD_61_PA3'] + df_all['D_WTPDGT_61_NU2']
+                case 'CVP Delivery Total':
+                    df_all[calculated_field] = df_all['DEL_CVP_TOTAL_N'] + df_all['DEL_CVP_TOTAL_S']
+                case 'CVP Delivery PMI N (w CCWD)':
+                    df_all[calculated_field] = df_all['DEL_CVP_PMI_N'] + df_all['D420']
+                case 'CVP Delivery North (w CCWD)':
+                    df_all[calculated_field] = df_all['DEL_CVP_TOTAL_N'] - df_all['DEL_CVP_PMI_N'] + df_all['DEL_CVP_PMI_N_WAMR'] + df_all['D420']
+                case _:
+                    pass
+    return df_all, c_field_list, c_default_units

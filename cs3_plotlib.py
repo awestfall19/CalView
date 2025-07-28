@@ -5,6 +5,7 @@ import panel as pn
 import holoviews as hv
 from panel.io import hold
 from bokeh.models import CustomJSTickFormatter
+import time
 from bokeh.models import WheelZoomTool
 from csdss_readlib_fullfile import file_reader, pickler, load_pickles, get_trend_fields
 
@@ -12,7 +13,6 @@ def get_vars_list(ls_vars, s_default):
     return [string for string in ls_vars if s_default in string]
 
 def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s_comparison, c_field_list):
-
     df_all_plot = df_all.copy(deep=True)
     df_all_plot.reset_index(inplace=True, drop=True)
     durations = [date.day for date in df_all_plot['Date']]
@@ -60,7 +60,7 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
             if b_no_unit_flag:
                 if b_diffs_flag:
                     pn.state.notifications.position = 'center-center'
-                    pn.state.notifications.warning('If more than one variable without units is selected, only the first will be displayed.', duration=7000)
+                    pn.state.notifications.warning('If more than one variable without units of TAF/CFS is selected, only the first will be displayed.', duration=7000)
                 var_list_final.remove(var)
                 continue
             b_no_unit_flag = True
@@ -99,6 +99,9 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
 
     df_plot = df_wide.drop([var for var in df_wide if var not in keeplist])
 
+    # round to one decimal place
+    df_plot=df_plot.round(1)
+
     keeplist.remove('Date')
     if b_no_unit_flag:
         no_unit_keeplist = [var for var in keeplist if s_no_unit_var in var]
@@ -107,42 +110,33 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
             'WYT_SAC_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
             'WYT_SJR_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
             'WYT_TRIN_': {1: 'Extremely Wet', 2: 'Wet', 3: 'Normal', 4: 'Dry', 5: 'Critically Dry'},
+            'WYT_SHASTA_CVP_': {0: 'Non-Critical', 1: 'ShastaCritical'},
+            'WYT_FEATHER_': {1: 'Non-Critical', 2: 'Critically Dry'},
+            'WYT_SJRRP_DV': {1: 'Wet', 2: 'Normal-Wet', 3: 'Normal-Dry', 4: 'Dry', 5: 'Critical High', 6: 'Critical Low'},
+            'WYT_AMERD983_CVP_': {1: 'Non-Critical', 2: 'Critically Dry'},
             'SHASTABIN_': {1: '1a', 2: '1b', 3: '2a', 4: '2b', 5: '3a', 6: '3b'}
         }
-
+        if s_no_unit_var not in c_no_unit_names.keys():
+            yformatter = None
+        else:
+            yformatter = CustomJSTickFormatter(code="""
+                                            var labels = %s;
+                                            return labels[tick] || tick;
+                                         """ % c_no_unit_names[s_no_unit_var])
         # if we only have the no unit variable selected
         if len(var_list_final) == 1:
-            # add horizontal line if we are doing the differences plot
-            if b_diffs_flag:
-                return pn.Column(
-                    pn.pane.HoloViews(df_plot.hvplot.scatter(
-                        x='Date',
-                        y=no_unit_keeplist,
-                        ylabel=c_field_list[s_no_unit_var],
-                        xlabel='Date',
-                        grid=True,
-                        min_height=600,
-                        yformatter=CustomJSTickFormatter(code="""
-                                                    var labels = %s;
-                                                    return labels[tick] || tick;
-                                                """ % c_no_unit_names[s_no_unit_var])
-                    ), sizing_mode='stretch_width', linked_axes=False),
-                    pn.pane.DataFrame(df_plot, index=False, max_height=500))
-            else:
-                return pn.Column(
-                    pn.pane.HoloViews(df_plot.hvplot.scatter(
-                        x='Date',
-                        y=no_unit_keeplist,
-                        ylabel=c_field_list[s_no_unit_var],
-                        xlabel='Date',
-                        grid=True,
-                        min_height=600,
-                        yformatter=CustomJSTickFormatter(code="""
-                                    var labels = %s;
-                                    return labels[tick] || tick;
-                                """ % c_no_unit_names[s_no_unit_var])
-                    ), sizing_mode='stretch_width', linked_axes=False),
-                    pn.pane.DataFrame(df_plot, index=False, max_height=500))
+            return pn.Column(
+                pn.pane.HoloViews(df_plot.hvplot.scatter(
+                    x='Date',
+                    y=no_unit_keeplist,
+                    ylabel=c_default_units[s_no_unit_var] if c_default_units[s_no_unit_var] != 'NONE' else c_field_list[s_no_unit_var],
+                    xlabel='Date',
+                    group_label='',
+                    grid=True,
+                    min_height=600,
+                    yformatter=yformatter
+                ).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False),
+                pn.pane.DataFrame(df_plot, index=False, max_height=500))
         # add horizontal line if we are doing the differences plot
         if b_diffs_flag:
             return pn.Column(
@@ -150,22 +144,21 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
                     x='Date',
                     y=unit_keeplist,
                     ylabel=unit_choice,
+                    group_label='',
                     xlabel='Date',
                     grid=True,
                     min_height=600
-                ), sizing_mode='stretch_width', linked_axes=False),
+                ).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False),
                 pn.pane.HoloViews(df_plot.hvplot.scatter(
                     x='Date',
                     y=no_unit_keeplist,
-                    ylabel=c_field_list[s_no_unit_var],
+                    ylabel=c_default_units[s_no_unit_var] if c_default_units[s_no_unit_var] != 'NONE' else c_field_list[s_no_unit_var],
                     xlabel='Date',
+                    group_label='',
                     grid=True,
-                    min_height=200,
-                    yformatter=CustomJSTickFormatter(code="""
-                                                var labels = %s;
-                                                return labels[tick] || tick;
-                                            """ % c_no_unit_names[s_no_unit_var])
-                ), sizing_mode='stretch_width', linked_axes=False),
+                    min_height=400,
+                    yformatter=yformatter
+                ).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False),
                 pn.pane.DataFrame(df_plot, index=False, max_height=500))
         else:
             return pn.Column(
@@ -174,45 +167,43 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
                     y=unit_keeplist,
                     ylabel=unit_choice,
                     xlabel='Date',
+                    group_label='',
                     grid=True,
                     min_height=600,
-                ), sizing_mode='stretch_width', linked_axes=False),
+                ).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False),
                 pn.pane.HoloViews(df_plot.hvplot.scatter(
                     x='Date',
                     y=no_unit_keeplist,
-                    ylabel=c_field_list[s_no_unit_var],
+                    ylabel=c_default_units[s_no_unit_var] if c_default_units[s_no_unit_var] != 'NONE' else c_field_list[s_no_unit_var],
                     xlabel='Date',
+                    group_label='',
                     grid=True,
-                    min_height=100,
-                    yformatter=CustomJSTickFormatter(code="""
-                        var labels = %s;
-                        return labels[tick] || tick;
-                    """ % c_no_unit_names[s_no_unit_var])
-                ), sizing_mode='stretch_width', linked_axes=False),
+                    min_height=400,
+                    yformatter=yformatter
+                ).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False),
                 pn.pane.DataFrame(df_plot, index=False, max_height=500))
     # add horizontal line if we are doing the differences plot
     if b_diffs_flag:
-        return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
+        return pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
             x='Date',
             ylabel=unit_choice,
             xlabel='Date',
             grid=True,
             min_height=600
-        ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, index=False, max_height=500))
+        )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, index=False, max_height=500))
 
     else:
-        return pn.Column(pn.pane.HoloViews(df_plot.hvplot(
+        return pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(line_width=0) * df_plot.hvplot(
             x='Date',
             ylabel=unit_choice,
             xlabel='Date',
             grid=True,
             min_height=600
-        ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, index=False, max_height=500))
+        )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, index=False, max_height=500))
 
 def plot_time_group(scenario_list, var_list, unit_choice, df_all,
                     c_default_units, period_choice, s_comparison,
                     c_field_list, li_wyt_selected, b_wyt_period_year, li_wyt_period_months):
-
     df_all_plot = df_all.copy(deep=True)
     df_all_plot.reset_index(inplace=True, drop=True)
     durations = [date.day for date in df_all_plot['Date']]
@@ -261,7 +252,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         elif original_unit == 'TAF':
             df_all_plot[var] = \
                 np.multiply(df_all_plot[var], taf_cfs)
-
+    agg_func = 'sum' if unit_choice == 'TAF' else 'mean'
     if len(var_list_final) == 0:
         return pn.pane.Markdown('## Select variables above to display plot.')
 
@@ -284,11 +275,11 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         df_septembers = df_all_plot[df_all_plot['Month'] == 9]
 
         # pull the years and scenarios that match the selected wyts
-        df_wy_to_use = df_septembers[df_septembers[s_wyt_col].isin(li_wyt_selected)][['Scenario', 'WY', s_wyt_col]]
+        df_wy_to_use = df_septembers[df_septembers[s_wyt_col].isin(li_wyt_selected)][['Scenario', 'OctSeptYear', s_wyt_col]]
         # dictionary to hold {(scenario, WY): WYT}
         c_wy_to_wyt = {}
         for index, row in df_wy_to_use.iterrows():
-            c_wy_to_wyt[(row['Scenario'], row['WY'])] = row[s_wyt_col]
+            c_wy_to_wyt[(row['Scenario'], row['OctSeptYear'])] = row[s_wyt_col]
 
         # Assign wyt column to be the final wyt
         def wy_to_wyt(wyt_dict, scen, year):
@@ -297,18 +288,18 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
             except:
                 return np.nan
 
-        df_all_plot[s_wyt_col] = df_all_plot.apply(lambda row: wy_to_wyt(c_wy_to_wyt, row['Scenario'], row['WY']), axis=1)
+        df_all_plot[s_wyt_col] = df_all_plot.apply(lambda row: wy_to_wyt(c_wy_to_wyt, row['Scenario'], row['OctSeptYear']), axis=1)
 
     # Sortable, filter to target scenarios and vars
     df_wide = pd.DataFrame(df_all_plot['Date'].unique(), columns=['Date'])
-    df_wide[['WY', 'DY', 'Month']] = df_all_plot.loc[df_all_plot['Scenario'] == scenario_list[0]][['WY', 'DY','Month']].reset_index(drop=True)
+    df_wide[['OctSeptYear', 'JanDecYear', 'MarFebYear', 'Month']] = df_all_plot.loc[df_all_plot['Scenario'] == scenario_list[0]][['OctSeptYear', 'JanDecYear', 'MarFebYear', 'Month']].reset_index(drop=True)
     df_wide.reset_index(inplace=True, drop=True)
 
     #keeplist = ['Date']
     keeplist = []
 
     # if grouping by wyt we need to include that variable
-    if (len(str(period_choice)) >= 3) and (period_choice[:3] == 'WYT')or period_choice == 'SHASTABIN_':
+    if (len(str(period_choice)) >= 3) and (period_choice[:3] == 'WYT') or period_choice == 'SHASTABIN_':
         for scenario in scenario_list:
             df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][[s_wyt_col]]
             df_temp.reset_index(inplace=True, drop=True)
@@ -336,32 +327,33 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 
     # grouping by period choice
     # if we chose a year option
-    if period_choice in ["WY", "DY", "CY"]:
-        if period_choice == "CY":
-            df_wide['CY'] = np.where(df_wide.Month >= 3, df_wide.DY, df_wide.DY-1)
+    if period_choice in ["OctSeptYear", "JanDecYear", "MarFebYear"]:
         df_timecounts = df_wide.groupby(by=[period_choice]).count()
         droplist = df_timecounts[df_timecounts['Date'] < 12].index
         df_wide = df_wide[df_wide[period_choice].isin(droplist) == False]
         # Can't sum dates: drop
         df_wide = df_wide.drop('Date', axis=1)
-        df_grouped = df_wide.groupby(by=[period_choice]).sum()
+        df_grouped = df_wide.groupby(by=[period_choice]).agg(agg_func)
         df_plot = df_grouped[keeplist]
+
+        # round to one decimal place
+        df_plot = df_plot.round(1)
 
         # add horizontal line if we are doing the differences plot
         if b_diffs_flag:
-            return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
+            return pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
                 min_height=600,
                 grid=True,
-                ylabel='Total ' + unit_choice,
+                ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Year',
-            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
+            )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
         else:
-            return pn.Column(pn.pane.HoloViews(df_plot.hvplot(
+            return pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(line_width=0) * df_plot.hvplot(
                 min_height=600,
                 grid=True,
-                ylabel='Total ' + unit_choice,
+                ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Year',
-            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
+            )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
 
     # if water year type is selected as period
     elif (len(str(period_choice)) >= 3) and (period_choice[:3] == 'WYT') or period_choice == 'SHASTABIN_':
@@ -376,15 +368,15 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         # if we want to look at water year totals
         if b_wyt_period_year:
             # drop incomplete years
-            df_timecounts = df_wide.groupby(by=['WY']).count()
+            df_timecounts = df_wide.groupby(by=['OctSeptYear']).count()
             droplist = df_timecounts[df_timecounts['Date'] < 12].index
-            df_wide = df_wide[df_wide['WY'].isin(droplist) == False]
+            df_wide = df_wide[df_wide['OctSeptYear'].isin(droplist) == False]
 
             # Can't sum dates: drop
             df_wide = df_wide.drop('Date', axis=1)
 
-            # get the year totals
-            df_grouped = df_wide.groupby(by=['WY']).sum()
+            # get the year totals/averages
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
 
             # assign the WYt to be the correct one
             df_grouped[keeplist[:len(scenario_list)]] = df_grouped[keeplist[:len(scenario_list)]]/12
@@ -401,33 +393,44 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
             df_wide = df_wide[df_wide['Month'].isin(li_wyt_period_months)]
 
             # drop incomplete years
-            df_timecounts = df_wide.groupby(by=['WY']).count()
+            df_timecounts = df_wide.groupby(by=['OctSeptYear']).count()
             droplist = df_timecounts[df_timecounts['Date'] < len(li_wyt_period_months)].index
-            df_wide = df_wide[df_wide['WY'].isin(droplist) == False]
+            df_wide = df_wide[df_wide['OctSeptYear'].isin(droplist) == False]
 
             # Can't sum dates: drop
             df_wide = df_wide.drop('Date', axis=1)
 
-            # get the year totals
-            df_grouped = df_wide.groupby(by=['WY']).sum()
+            # get the year totals/avgs
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
 
             # assign the WYt to be the correct one
             df_grouped[keeplist[:len(scenario_list)]] = df_grouped[keeplist[:len(scenario_list)]] / len(li_wyt_period_months)
 
             # get rid of other columns we dont need
             df_plot = df_grouped[keeplist]
+
+        # round to one decimal place
+        df_plot = df_plot.round(1)
+
         s_title = "## " + s_wyt_col + " "
 
-        c_wyt_names = {
+        c_no_unit_names = {
             'WYT_SAC_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
             'WYT_SJR_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
             'WYT_TRIN_': {1: 'Extremely Wet', 2: 'Wet', 3: 'Normal', 4: 'Dry', 5: 'Critically Dry'},
+            'WYT_SHASTA_CVP_': {0: 'Non-Critical', 1: 'ShastaCritical'},
+            'WYT_FEATHER_': {1: 'Non-Critical', 2: 'Critically Dry'},
+            'WYT_SJRRP_DV': {1: 'Wet', 2: 'Normal-Wet', 3: 'Normal-Dry', 4: 'Dry', 5: 'Critical High', 6: 'Critical Low'},
+            'WYT_AMERD983_CVP_': {1: 'Non-Critical', 2: 'Critically Dry'},
             'SHASTABIN_': {1: '1a', 2: '1b', 3: '2a', 4: '2b', 5: '3a', 6: '3b'}
         }
-        if period_choice[:3] == 'WYT':
-            s_all_sel_wyt = 'All Water Year Types' if len(li_wyt_selected) == 5 else ', '.join([c_wyt_names[period_choice][wyt] for wyt in li_wyt_selected])
-        else:
-            s_all_sel_wyt = ', '.join([c_wyt_names[period_choice][wyt] for wyt in li_wyt_selected])
+        try:
+            if period_choice[:3] == 'WYT':
+                s_all_sel_wyt = 'All Water Year Types' if len(li_wyt_selected) == len(list(c_no_unit_names[period_choice].keys())) else ', '.join([c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
+            else:
+                s_all_sel_wyt = ', '.join([c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
+        except:
+            s_all_sel_wyt = ', '.join([str(wyt) for wyt in li_wyt_selected])
 
         s_title += s_all_sel_wyt + ' Years \n'
         if b_wyt_period_year:
@@ -439,21 +442,21 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         # add horizontal line if we are doing the differences plot
         if b_diffs_flag:
 
-            return pn.Column(s_title, pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot.scatter(
+            return pn.Column(s_title, pn.pane.HoloViews((hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot.scatter(
                 y=keeplist[len(scenario_list):], # to avoid plotting the wyt
                 min_height=600,
                 grid=True,
                 xlabel='Water Year',
-                ylabel='Total ' + unit_choice,
-            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
+                ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
+            )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
         else:
-            return pn.Column(s_title, pn.pane.HoloViews(df_plot.hvplot.scatter(
+            return pn.Column(s_title, pn.pane.HoloViews((hv.HLine(0).opts(line_width=0) * df_plot.hvplot.scatter(
                 y=keeplist[len(scenario_list):], # to avoid plotting the wyt
                 min_height=600,
                 grid=True,
                 xlabel='Water Year',
-                ylabel='Total ' + unit_choice,
-            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
+                ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
+            )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
 
     # selected a month
     elif isinstance(period_choice, int):
@@ -461,29 +464,32 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 
         # Can't sum dates: drop
         df_wide = df_wide.drop('Date', axis=1)
-        df_grouped = df_wide.groupby(by=['DY']).sum()
+        # this shouldn't make a difference since it will be one per month but it makes it match the rest
+        df_grouped = df_wide.groupby(by=['JanDecYear']).agg(agg_func)
         df_plot = df_grouped[keeplist]
+
+        # round to one decimal place
+        df_plot = df_plot.round(1)
+
         c_num_to_month = {1: "January", 2: "February", 3: "March", 4: "April",
                           5: "May", 6: "June", 7: "July", 8: "August",
                           9: "September", 10: "October", 11: "November", 12: "December"}
         # add horizontal line if we are doing the differences plot
         if b_diffs_flag:
-            return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
-                y=keeplist[1:],
+            return pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
                 min_height=600,
                 ylabel=c_num_to_month[period_choice] + ' ' + unit_choice,
                 xlabel='Year',
                 grid=True
-            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
+            )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
 
         else:
-            return pn.Column(pn.pane.HoloViews(df_plot.hvplot(
-                y=keeplist[1:],
+            return pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(line_width=0) * df_plot.hvplot(
                 min_height=600,
                 ylabel=c_num_to_month[period_choice] + ' ' + unit_choice,
                 xlabel='Year',
                 grid=True
-            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
+            )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
 
     # if they picked a partial month
     else:
@@ -502,34 +508,35 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 
         # if we cross a cal year change, group by WY
         if period_choice in ['11-3', '10-1', '12-2']:
-            df_grouped = df_wide.groupby(by=['WY']).sum()
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
         else:
-            df_grouped = df_wide.groupby(by=['DY']).sum()
+            df_grouped = df_wide.groupby(by=['JanDecYear']).agg(agg_func)
         df_plot = df_grouped[keeplist]
+
+        # round to one decimal place
+        df_plot = df_plot.round(1)
 
         # add horizontal line if we are doing the differences plot
         if b_diffs_flag:
-            return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
-                y=keeplist[1:],
+            return pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
                 min_height=600,
-                ylabel='Total ' + unit_choice,
+                ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Year',
                 grid=True
-            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
+            )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
 
         else:
-            return pn.Column(pn.pane.HoloViews(df_plot.hvplot(
-                y=keeplist[1:],
+            return pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(line_width=0) * df_plot.hvplot(
                 min_height=600,
-                ylabel='Total ' + unit_choice,
+                ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Year',
                 grid=True
-            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
+            )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
 
 def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                          c_default_units, period_choice, s_comparison, c_field_list,
-                         li_wyt_selected, b_wyt_period_year, li_wyt_period_months):
-
+                         li_wyt_selected, b_wyt_period_year, li_wyt_period_months,
+                         b_show_year):
     df_all_plot = df_all.copy(deep=True)
     df_all_plot.reset_index(inplace=True, drop=True)
     durations = [date.day for date in df_all_plot['Date']]
@@ -580,7 +587,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         elif original_unit == 'TAF':
             df_all_plot[var] = \
                 np.multiply(df_all_plot[var], taf_cfs)
-
+    agg_func = 'sum' if unit_choice == 'TAF' else 'mean'
     if len(var_list_final) == 0:
         return pn.pane.Markdown('## Select variables above to display plot.')
 
@@ -603,11 +610,11 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         df_septembers = df_all_plot[df_all_plot['Month'] == 9]
 
         # pull the years and scenarios that match the selected wyts
-        df_wy_to_use = df_septembers[df_septembers[s_wyt_col].isin(li_wyt_selected)][['Scenario', 'WY', s_wyt_col]]
+        df_wy_to_use = df_septembers[df_septembers[s_wyt_col].isin(li_wyt_selected)][['Scenario', 'OctSeptYear', s_wyt_col]]
         # dictionary to hold {(scenario, WY): WYT}
         c_wy_to_wyt = {}
         for index, row in df_wy_to_use.iterrows():
-            c_wy_to_wyt[(row['Scenario'], row['WY'])] = row[s_wyt_col]
+            c_wy_to_wyt[(row['Scenario'], row['OctSeptYear'])] = row[s_wyt_col]
 
         # Assign wyt column to be the final wyt
         def wy_to_wyt(wyt_dict, scen, year):
@@ -616,11 +623,11 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
             except:
                 return np.nan
 
-        df_all_plot[s_wyt_col] = df_all_plot.apply(lambda row: wy_to_wyt(c_wy_to_wyt, row['Scenario'], row['WY']), axis=1)
+        df_all_plot[s_wyt_col] = df_all_plot.apply(lambda row: wy_to_wyt(c_wy_to_wyt, row['Scenario'], row['OctSeptYear']), axis=1)
 
     # Sortable, filter to target scenarios and vars
     df_wide = pd.DataFrame(df_all_plot['Date'].unique(), columns=['Date'])
-    df_wide[['WY', 'DY', 'Month']] = df_all_plot.loc[df_all_plot['Scenario'] == scenario_list[0]][['WY', 'DY','Month']].reset_index(drop=True)
+    df_wide[['OctSeptYear', 'JanDecYear', 'MarFebYear', 'Month']] = df_all_plot.loc[df_all_plot['Scenario'] == scenario_list[0]][['OctSeptYear', 'JanDecYear', 'MarFebYear', 'Month']].reset_index(drop=True)
     df_wide.reset_index(inplace=True, drop=True)
 
     # This will allow us to drop the columns used for sorting / aggregating once the
@@ -654,10 +661,8 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
     # Remove incomplete years (default CS3 runs typically based on WY)
     # Grouping by calendar year or contract year (Mar-Feb) leaves partial
     # years @ start/end of run
-    # period_choice = 'DY' #dbg only
-    if period_choice in ['WY', 'DY', 'CY']:
-        if period_choice == 'CY':
-            df_wide['CY'] = np.where(df_wide.Month >= 3, df_wide.DY, df_wide.DY - 1)
+    # period_choice = 'JanDecYear' #dbg only
+    if period_choice in ['OctSeptYear', 'JanDecYear', 'MarFebYear']:
         df_timecounts = df_wide.groupby(by=[period_choice]).count()
         droplist = df_timecounts[df_timecounts['Date'] < 12].index
         df_wide = df_wide[df_wide[period_choice].isin(droplist) == False]
@@ -666,10 +671,9 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 
         # Can't sum dates: drop
         df_wide = df_wide.drop('Date', axis=1)
-        df_grouped = df_wide.groupby(by=[period_choice]).sum()
-        df_grouped.reset_index(inplace=True)
+        df_grouped = df_wide.groupby(by=[period_choice]).agg(agg_func)
 
-        df_exceed = pd.DataFrame(index=df_grouped.index)
+        df_exceed = pd.DataFrame(index=list(range(df_grouped.shape[0])))
 
         # add exceedance probabilities
         i_n = df_grouped.shape[0]
@@ -678,32 +682,39 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 
         for var in keeplist:
             if var != 'Date':
+                if b_show_year:
+                    l_years_sorted = df_grouped[var].sort_values().index
+                    df_exceed[var+' (Year)'] = l_years_sorted
                 l_sorted = df_grouped[var].sort_values().reset_index(drop=True)
                 df_exceed[var] = l_sorted
 
+        # round to one decimal place
+        df_exceed = df_exceed.round(1)
 
         # add horizontal line if we are doing the differences plot
         if b_diffs_flag:
-            return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_exceed.hvplot(
+            return pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(color='black', line_width=1) * df_exceed.hvplot(
                 x='exceedance_probability',
+                y=keeplist,
                 min_height=600,
-                ylabel='Total ' + unit_choice,
+                ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
                 flip_xaxis=True,
                 xformatter='%f%%',
                 grid=True
-            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
+            )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
 
         else:
-            return pn.Column(pn.pane.HoloViews(df_exceed.hvplot(
+            return pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(line_width=0) * df_exceed.hvplot(
                 x='exceedance_probability',
+                y=keeplist,
                 min_height=600,
-                ylabel='Total ' + unit_choice,
+                ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
                 flip_xaxis=True,
                 xformatter='%f%%',
                 grid=True
-            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
+            )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
 
     # if water year type is selected as period
     elif (len(str(period_choice)) >= 3) and (period_choice[:3] == 'WYT') or period_choice == 'SHASTABIN_':
@@ -718,18 +729,17 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
             # if we want to look at water year totals
         if b_wyt_period_year:
             # drop incomplete years
-            df_timecounts = df_wide.groupby(by=['WY']).count()
+            df_timecounts = df_wide.groupby(by=['OctSeptYear']).count()
             droplist = df_timecounts[df_timecounts['Date'] < 12].index
-            df_wide = df_wide[df_wide['WY'].isin(droplist) == False]
+            df_wide = df_wide[df_wide['OctSeptYear'].isin(droplist) == False]
 
             # Can't sum dates: drop
             df_wide = df_wide.drop('Date', axis=1)
 
-            # get the year totals
-            df_grouped = df_wide.groupby(by=['WY']).sum()
-            df_grouped.reset_index(inplace=True)
+            # get the year totals/avgs
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
 
-            df_exceed = pd.DataFrame(index=df_grouped.index)
+            df_exceed = pd.DataFrame(index=list(range(df_grouped.shape[0])))
 
             # add exceedance probabilities
             i_n = df_grouped.shape[0]
@@ -738,6 +748,9 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 
             for var in keeplist[len(scenario_list):]:
                 if var != 'Date':
+                    if b_show_year:
+                        l_years_sorted = df_grouped[var].sort_values().index
+                        df_exceed[var + ' (Year)'] = l_years_sorted
                     l_sorted = df_grouped[var].sort_values().reset_index(drop=True)
                     df_exceed[var] = l_sorted
 
@@ -752,19 +765,17 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
             df_wide = df_wide[df_wide['Month'].isin(li_wyt_period_months)]
 
             # drop incomplete years
-            df_timecounts = df_wide.groupby(by=['WY']).count()
+            df_timecounts = df_wide.groupby(by=['OctSeptYear']).count()
             droplist = df_timecounts[df_timecounts['Date'] < len(li_wyt_period_months)].index
-            df_wide = df_wide[df_wide['WY'].isin(droplist) == False]
+            df_wide = df_wide[df_wide['OctSeptYear'].isin(droplist) == False]
 
             # Can't sum dates: drop
             df_wide = df_wide.drop('Date', axis=1)
 
-            # get the year totals
-            df_grouped = df_wide.groupby(by=['WY']).sum()
+            # get the year totals/avgs
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
 
-            df_grouped.reset_index(inplace=True)
-
-            df_exceed = pd.DataFrame(index=df_grouped.index)
+            df_exceed = pd.DataFrame(index=list(range(df_grouped.shape[0])))
 
             # add exceedance probabilities
             i_n = df_grouped.shape[0]
@@ -772,22 +783,35 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
             df_exceed['exceedance_probability'] = ld_probabilities
 
             for var in keeplist[len(scenario_list):]:
-                if var != 'Date':
-                    l_sorted = df_grouped[var].sort_values().reset_index(drop=True)
-                    df_exceed[var] = l_sorted
+                if b_show_year:
+                    l_years_sorted = df_grouped[var].sort_values().index
+                    df_exceed[var + ' (Year)'] = l_years_sorted
+                l_sorted = df_grouped[var].sort_values().reset_index(drop=True)
+                df_exceed[var] = l_sorted
+
+        # round to one decimal place
+        df_exceed = df_exceed.round(1)
 
         s_title = "## " + s_wyt_col + " "
 
-        c_wyt_names = {
+        c_no_unit_names = {
             'WYT_SAC_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
             'WYT_SJR_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
             'WYT_TRIN_': {1: 'Extremely Wet', 2: 'Wet', 3: 'Normal', 4: 'Dry', 5: 'Critically Dry'},
+            'WYT_SHASTA_CVP_': {0: 'Non-Critical', 1: 'ShastaCritical'},
+            'WYT_FEATHER_': {1: 'Non-Critical', 2: 'Critically Dry'},
+            'WYT_SJRRP_DV': {1: 'Wet', 2: 'Normal-Wet', 3: 'Normal-Dry', 4: 'Dry', 5: 'Critical High', 6: 'Critical Low'},
+            'WYT_AMERD983_CVP_': {1: 'Non-Critical', 2: 'Critically Dry'},
             'SHASTABIN_': {1: '1a', 2: '1b', 3: '2a', 4: '2b', 5: '3a', 6: '3b'}
         }
-        if period_choice[:3] == 'WYT':
-            s_all_sel_wyt = 'All Water Year Types' if len(li_wyt_selected) == 5 else ', '.join([c_wyt_names[period_choice][wyt] for wyt in li_wyt_selected])
-        else:
-            s_all_sel_wyt = ', '.join([c_wyt_names[period_choice][wyt] for wyt in li_wyt_selected])
+        try:
+            if period_choice[:3] == 'WYT':
+                s_all_sel_wyt = 'All Water Year Types' if len(li_wyt_selected) == len(list(c_no_unit_names[period_choice].keys())) else ', '.join(
+                    [c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
+            else:
+                s_all_sel_wyt = ', '.join([c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
+        except:
+            s_all_sel_wyt = ', '.join([str(wyt) for wyt in li_wyt_selected])
 
         s_title += s_all_sel_wyt + ' Years \n'
         if b_wyt_period_year:
@@ -799,26 +823,28 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 
         # add horizontal line if we are doing the differences plot
         if b_diffs_flag:
-            return pn.Column(s_title, pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_exceed.hvplot(
+            return pn.Column(s_title, pn.pane.HoloViews((hv.HLine(0).opts(color='black', line_width=1) * df_exceed.hvplot(
                 x='exceedance_probability',
+                y=[var for var in df_exceed.columns if '(Year)' not in var and 'exceedance_probability' != var],
                 min_height=600,
-                ylabel='Total ' + unit_choice,
+                ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
                 flip_xaxis=True,
                 xformatter='%f%%',
                 grid=True
-            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
+            )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
 
         else:
-            return pn.Column(s_title, pn.pane.HoloViews(df_exceed.hvplot(
+            return pn.Column(s_title, pn.pane.HoloViews((hv.HLine(0).opts(line_width=0) * df_exceed.hvplot(
                 x='exceedance_probability',
+                y=[var for var in df_exceed.columns if '(Year)' not in var and 'exceedance_probability' != var],
                 min_height=600,
-                ylabel='Total ' + unit_choice,
+                ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
                 flip_xaxis=True,
                 xformatter='%f%%',
                 grid=True
-            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
+            )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
 
 
     # month choice
@@ -829,10 +855,9 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 
         # Can't sum dates: drop
         df_wide = df_wide.drop('Date', axis=1)
-        df_grouped = df_wide.groupby(by=['DY']).sum()
-        df_grouped.reset_index(inplace=True)
-        # plot_pos = df_grouped.index
-        df_exceed = pd.DataFrame(index=df_grouped.index)
+        df_grouped = df_wide.groupby(by=['JanDecYear']).agg(agg_func)
+
+        df_exceed = pd.DataFrame(index=list(range(df_grouped.shape[0])))
 
         # add exceedance probabilities
         i_n = df_grouped.shape[0]
@@ -840,9 +865,14 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         df_exceed['exceedance_probability'] = ld_probabilities
 
         for var in keeplist:
-            if var != 'Date':
-                l_sorted = df_grouped[var].sort_values().reset_index(drop=True)
-                df_exceed[var] = l_sorted
+            if b_show_year:
+                l_years_sorted = df_grouped[var].sort_values().index
+                df_exceed[var+' (Year)'] = l_years_sorted
+            l_sorted = df_grouped[var].sort_values().reset_index(drop=True)
+            df_exceed[var] = l_sorted
+
+        # round to one decimal place
+        df_exceed = df_exceed.round(1)
 
         c_num_to_month = {1: "January", 2: "February", 3: "March", 4: "April",
                           5: "May", 6: "June", 7: "July", 8: "August",
@@ -850,26 +880,28 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 
         # add horizontal line if we are doing the differences plot
         if b_diffs_flag:
-            return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_exceed.hvplot(
+            return pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(color='black', line_width=1) * df_exceed.hvplot(
                 x='exceedance_probability',
+                y=keeplist,
                 min_height=600,
                 ylabel=c_num_to_month[period_choice] + ' ' + unit_choice,
                 xlabel='Probability of Exceedance',
                 flip_xaxis=True,
                 xformatter='%f%%',
                 grid=True
-            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
+            )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
 
         else:
-            return pn.Column(pn.pane.HoloViews(df_exceed.hvplot(
+            return pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(line_width=0) * df_exceed.hvplot(
                 x='exceedance_probability',
+                y=keeplist,
                 min_height=600,
                 ylabel=c_num_to_month[period_choice] + ' ' + unit_choice,
                 xlabel='Probability of Exceedance',
                 flip_xaxis=True,
                 xformatter='%f%%',
                 grid=True
-            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
+            )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
 
     else:
         # pull out start and stop months and then create a list of all the months in between
@@ -889,13 +921,11 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 
         # if we cross a cal year change, group by WY
         if period_choice in ['11-3', '10-1', '12-2']:
-            df_grouped = df_wide.groupby(by=['WY']).sum()
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
         else:
-            df_grouped = df_wide.groupby(by=['DY']).sum()
+            df_grouped = df_wide.groupby(by=['JanDecYear']).agg(agg_func)
 
-        df_grouped.reset_index(inplace=True)
-        # plot_pos = df_grouped.index
-        df_exceed = pd.DataFrame(index=df_grouped.index)
+        df_exceed = pd.DataFrame(index=list(range(df_grouped.shape[0])))
 
         # add exceedance probabilities
         i_n = df_grouped.shape[0]
@@ -903,37 +933,43 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         df_exceed['exceedance_probability'] = ld_probabilities
 
         for var in keeplist:
-            if var != 'Date':
-                l_sorted = df_grouped[var].sort_values().reset_index(drop=True)
-                df_exceed[var] = l_sorted
+            if b_show_year:
+                l_years_sorted = df_grouped[var].sort_values().index
+                df_exceed[var + ' (Year)'] = l_years_sorted
+            l_sorted = df_grouped[var].sort_values().reset_index(drop=True)
+            df_exceed[var] = l_sorted
+
+        # round to one decimal place
+        df_exceed = df_exceed.round(1)
 
         # add horizontal line if we are doing the differences plot
         if b_diffs_flag:
-            return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_exceed.hvplot(
+            return pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(color='black', line_width=1) * df_exceed.hvplot(
                 x='exceedance_probability',
+                y=keeplist,
                 min_height=600,
-                ylabel='Total ' + unit_choice,
+                ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
                 flip_xaxis=True,
                 xformatter='%f%%',
                 grid=True
-            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
+            )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
 
         else:
-            return pn.Column(pn.pane.HoloViews(df_exceed.hvplot(
+            return pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(line_width=0) * df_exceed.hvplot(
                 x='exceedance_probability',
+                y=keeplist,
                 min_height=600,
-                ylabel='Total ' + unit_choice,
+                ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
                 flip_xaxis=True,
                 xformatter='%f%%',
                 grid=True
-            ), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
+            )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
 
 def plot_bars(df_all, period_choice, var_list, scenario_list,
               unit_choice, stat_choice, c_default_units, s_comparison, c_field_list,
               li_wyt_selected, b_wyt_period_year, li_wyt_period_months):
-
     df_all_plot = df_all.copy(deep=True)
     df_all_plot.reset_index(inplace=True, drop=True)
     durations = [date.day for date in df_all['Date']]
@@ -943,7 +979,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot
     if s_comparison in scenario_list:
         scenario_list.remove(s_comparison)
-        scenario_list.append(s_comparison)
+        scenario_list.insert(0, s_comparison)
 
     # check if comparison scen is in the data frame
     # if it's not, then we are creating the differences plot and dont want to include comparison scen
@@ -984,7 +1020,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
         elif original_unit == 'TAF':
             df_all_plot[var] = \
                 np.multiply(df_all_plot[var], taf_cfs)
-
+    agg_func = 'sum' if unit_choice == 'TAF' else 'mean'
     if len(var_list_final) == 0:
         return pn.pane.Markdown('## Select variables above to display plot.')
 
@@ -1007,11 +1043,11 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
         df_septembers = df_all_plot[df_all_plot['Month'] == 9]
 
         # pull the years and scenarios that match the selected wyts
-        df_wy_to_use = df_septembers[df_septembers[s_wyt_col].isin(li_wyt_selected)][['Scenario', 'WY', s_wyt_col]]
+        df_wy_to_use = df_septembers[df_septembers[s_wyt_col].isin(li_wyt_selected)][['Scenario', 'OctSeptYear', s_wyt_col]]
         # dictionary to hold {(scenario, WY): WYT}
         c_wy_to_wyt = {}
         for index, row in df_wy_to_use.iterrows():
-            c_wy_to_wyt[(row['Scenario'], row['WY'])] = row[s_wyt_col]
+            c_wy_to_wyt[(row['Scenario'], row['OctSeptYear'])] = row[s_wyt_col]
 
         # Assign wyt column to be the final wyt
         def wy_to_wyt(wyt_dict, scen, year):
@@ -1020,11 +1056,11 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
             except:
                 return np.nan
 
-        df_all_plot[s_wyt_col] = df_all_plot.apply(lambda row: wy_to_wyt(c_wy_to_wyt, row['Scenario'], row['WY']), axis=1)
+        df_all_plot[s_wyt_col] = df_all_plot.apply(lambda row: wy_to_wyt(c_wy_to_wyt, row['Scenario'], row['OctSeptYear']), axis=1)
 
     # Sortable, filter to target scenarios and vars
     df_wide = pd.DataFrame(df_all_plot['Date'].unique(), columns=['Date'])
-    df_wide[['WY', 'DY', 'Month']] = df_all_plot.loc[df_all_plot['Scenario'] == scenario_list[0]][['WY', 'DY', 'Month']].reset_index(drop=True)
+    df_wide[['OctSeptYear', 'JanDecYear', 'MarFebYear', 'Month']] = df_all_plot.loc[df_all_plot['Scenario'] == scenario_list[0]][['OctSeptYear', 'JanDecYear', 'MarFebYear', 'Month']].reset_index(drop=True)
     df_wide.reset_index(inplace=True, drop=True)
 
     keeplist = []
@@ -1049,16 +1085,14 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
             keeplist.append(col_names[0])
 
     # ------- Agg ops below -------------
-    if period_choice in ['WY', 'DY', 'CY']:
-        if period_choice == "CY":
-            df_wide['CY'] = np.where(df_wide.Month >= 3, df_wide.DY, df_wide.DY - 1)
+    if period_choice in ['OctSeptYear', 'JanDecYear', 'MarFebYear']:
         df_timecounts = df_wide.groupby(by=[period_choice]).count()
         droplist = df_timecounts[df_timecounts['Date'] < 12].index
         df_wide = df_wide[df_wide[period_choice].isin(droplist) == False]
 
         # Can't sum dates: drop
         df_wide = df_wide.drop('Date', axis=1)
-        df_grouped = df_wide.groupby(by=[period_choice]).sum()
+        df_grouped = df_wide.groupby(by=[period_choice]).agg(agg_func)
         df_plot = df_grouped[keeplist]
 
         # calculate chosen stat
@@ -1107,15 +1141,15 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
         # if we want to look at water year totals
         if b_wyt_period_year:
             # drop incomplete years
-            df_timecounts = df_wide.groupby(by=['WY']).count()
+            df_timecounts = df_wide.groupby(by=['OctSeptYear']).count()
             droplist = df_timecounts[df_timecounts['Date'] < 12].index
-            df_wide = df_wide[df_wide['WY'].isin(droplist) == False]
+            df_wide = df_wide[df_wide['OctSeptYear'].isin(droplist) == False]
 
             # Can't sum dates: drop
             df_wide = df_wide.drop('Date', axis=1)
 
-            # get the year totals
-            df_grouped = df_wide.groupby(by=['WY']).sum()
+            # get the year totals/avgs
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
 
             # assign the WYt to be the correct one
             df_grouped[keeplist[:len(scenario_list)]] = df_grouped[keeplist[:len(scenario_list)]] / 12
@@ -1132,27 +1166,21 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
             df_wide = df_wide[df_wide['Month'].isin(li_wyt_period_months)]
 
             # drop incomplete years
-            df_timecounts = df_wide.groupby(by=['WY']).count()
+            df_timecounts = df_wide.groupby(by=['OctSeptYear']).count()
             droplist = df_timecounts[df_timecounts['Date'] < len(li_wyt_period_months)].index
-            df_wide = df_wide[df_wide['WY'].isin(droplist) == False]
+            df_wide = df_wide[df_wide['OctSeptYear'].isin(droplist) == False]
 
             # Can't sum dates: drop
             df_wide = df_wide.drop('Date', axis=1)
 
-            # get the year totals
-            df_grouped = df_wide.groupby(by=['WY']).sum()
+            # get the year totals/avgs
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
 
             # assign the WYt to be the correct one
             df_grouped[keeplist[:len(scenario_list)]] = df_grouped[keeplist[:len(scenario_list)]] / len(li_wyt_period_months)
 
             # get rid of other columns we dont need
             df_plot = df_grouped[keeplist]
-            # if stat_choice == 'Average':
-            #     df_stats = df_plot[keeplist[len(scenario_list):]].mean().to_frame()
-            # elif stat_choice == 'Minimum':
-            #     df_stats = df_plot[keeplist[len(scenario_list):]].min().to_frame()
-            # else:
-            #     df_stats = df_plot[keeplist[len(scenario_list):]].max().to_frame()
 
         df_final = pd.DataFrame(index=pd.MultiIndex.from_product([li_wyt_selected, scenario_list], names=[s_wyt_col, 'Scenario']))
         for i_wyt in li_wyt_selected:
@@ -1226,22 +1254,41 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
                     df_temp = df_exceed.loc[i_exceedance_prob]
             df_final.loc[(99, s_scen), var_list_final[0]] = df_temp.values
 
+        # round to one decimal place
+        df_final = df_final.round(1)
+        df_plot = df_plot.round(1)
+
         s_title = "## " + s_wyt_col + " "
 
-        c_wyt_names = {
+        c_no_unit_names = {
             'WYT_SAC_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
             'WYT_SJR_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
             'WYT_TRIN_': {1: 'Extremely Wet', 2: 'Wet', 3: 'Normal', 4: 'Dry', 5: 'Critically Dry'},
+            'WYT_SHASTA_CVP_': {0: 'Non-Critical', 1: 'ShastaCritical'},
+            'WYT_FEATHER_': {1: 'Non-Critical', 2: 'Critically Dry'},
+            'WYT_SJRRP_DV': {1: 'Wet', 2: 'Normal-Wet', 3: 'Normal-Dry', 4: 'Dry', 5: 'Critical High', 6: 'Critical Low'},
+            'WYT_AMERD983_CVP_': {1: 'Non-Critical', 2: 'Critically Dry'},
             'SHASTABIN_': {1: '1a', 2: '1b', 3: '2a', 4: '2b', 5: '3a', 6: '3b'}
         }
-        if period_choice[:3] == 'WYT':
-            s_all_sel_wyt = 'All Water Year Types' if len(li_wyt_selected) == 5 else ', '.join([c_wyt_names[period_choice][wyt] for wyt in li_wyt_selected])
-        else:
-            s_all_sel_wyt = ', '.join([c_wyt_names[period_choice][wyt] for wyt in li_wyt_selected])
+        try:
+            if period_choice[:3] == 'WYT':
+                s_all_sel_wyt = 'All Water Year Types' if len(li_wyt_selected) == len(list(c_no_unit_names[period_choice].keys())) else ', '.join(
+                    [c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
+            else:
+                s_all_sel_wyt = ', '.join([c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
+        except:
+            c_no_unit_names[period_choice] = {wyt: wyt for wyt in li_wyt_selected}
+            s_all_sel_wyt = 'All Water Year Types' if len(li_wyt_selected) == len(list(c_no_unit_names[period_choice].keys())) else ', '.join(
+                [c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
 
-        for wyt in list(c_wyt_names.keys()):
-            c_wyt_names[wyt][99] = s_all_sel_wyt
-        df_final.rename(index=c_wyt_names[period_choice], inplace=True)
+        try:
+            for wyt in list(c_no_unit_names.keys()):
+                c_no_unit_names[wyt][99] = s_all_sel_wyt
+            df_final.rename(index=c_no_unit_names[period_choice], inplace=True)
+        except:
+            for wyt in list(c_no_unit_names.keys()):
+                c_no_unit_names[wyt][99] = s_all_sel_wyt
+            df_final.rename(index=c_no_unit_names[period_choice], inplace=True)
 
         s_title += s_all_sel_wyt + ' Years \n'
         if b_wyt_period_year:
@@ -1261,7 +1308,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
                              pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_final.hvplot.bar(
                                  title='', grid=True,
                                  xlabel=s_wyt_col + ', Scenario',
-                                 ylabel=stat_choice + ' Total ' + var_list_final[0] + ' (' + unit_choice + ')',
+                                 ylabel=stat_choice + ' ' + var_list_final[0] + ' (' + unit_choice + ')',
                                  rot=90,
                                  min_height=600, legend=False), sizing_mode='stretch_width', linked_axes=False),
                              pn.pane.DataFrame(df_plot, max_height=500))
@@ -1271,14 +1318,14 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
                              pn.pane.HoloViews(df_final.hvplot.bar(
                                  title='', grid=True,
                                  xlabel=s_wyt_col + ', Scenario',
-                                 ylabel=stat_choice + ' Total ' + var_list_final[0] + ' (' + unit_choice + ')',
+                                 ylabel=stat_choice + ' ' + var_list_final[0] + ' (' + unit_choice + ')',
                                  rot=90,
                                  min_height=600), sizing_mode='stretch_width', linked_axes=False),
                              pn.pane.DataFrame(df_plot, max_height=500))
     # Month chosen
     elif isinstance(period_choice, int):
         df_wide = df_wide[df_wide.Month == period_choice]
-        df_grouped = df_wide.groupby(by=['DY']).sum()
+        df_grouped = df_wide.groupby(by=['JanDecYear']).agg(agg_func)
         df_plot = df_grouped[keeplist]
 
         # calculate chosen stat
@@ -1330,9 +1377,9 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
 
         # if we cross a cal year change, group by WY
         if period_choice in ['11-3', '10-1', '12-2']:
-            df_grouped = df_wide.groupby(by=['WY']).sum()
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
         else:
-            df_grouped = df_wide.groupby(by=['DY']).sum()
+            df_grouped = df_wide.groupby(by=['JanDecYear']).agg(agg_func)
             
         df_plot = df_grouped[keeplist]
 
@@ -1369,6 +1416,10 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
                 df_exceed.interpolate(method='index', inplace=True)
                 df_stats = df_exceed.loc[i_exceedance_prob].to_frame()
 
+    # round to one decimal place
+    df_stats = df_stats.round(1)
+    df_plot = df_plot.round(1)
+
     # calculate bound, pick colors, and plot for all data above
     # Set upper and lower bounds
     if np.min(df_stats) > 0:
@@ -1393,14 +1444,14 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     # pull out how many times we will need to duplicate this list
     i_full_list, i_remainder_list = divmod(df_stats.shape[0], len(ls_colors_to_use))
     ls_colors_to_use = ls_colors_to_use * i_full_list + ls_colors_to_use[:i_remainder_list]
-    df_stats['Color'] = ls_colors_to_use
+    df_stats['Color'] = ls_colors_to_use[::-1]
 
     # add horizontal line if we are doing the differences plot
     if b_diffs_flag:
         return pn.Column(
             pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_stats.hvplot.bar(
                                                                                                   title='',  color='Color', grid=True,
-                                                                                                  ylabel=stat_choice + ' Total ' + unit_choice,
+                                                                                                  ylabel=stat_choice + ' ' + unit_choice,
                                                                                                   ylim=(y_lower, y_upper), rot=20,
                                    min_height=600, legend=False), sizing_mode='stretch_width', linked_axes=False),
             pn.pane.DataFrame(df_plot, max_height=500))
@@ -1409,12 +1460,15 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
         return pn.Column(
             pn.pane.HoloViews(df_stats.hvplot.bar(
                                                   title='',  color='Color', grid=True,
-                                                  ylabel=stat_choice + ' Total ' + unit_choice,
+                                                  ylabel=stat_choice + ' ' + unit_choice,
                                                   ylim=(y_lower, y_upper), rot=20,
                                                   min_height=600), sizing_mode='stretch_width', linked_axes=False),
             pn.pane.DataFrame(df_plot, max_height=500))
 
-def monthly_pattern(df_all, var_list, scenario_list, unit_choice, stat_choice, c_default_units, s_comparison, c_field_list):
+
+def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
+                    stat_choice, c_default_units, s_comparison,
+                    c_field_list, period_choice, li_wyt_selected):
     df_all_plot = df_all.copy(deep=True)
     df_all_plot.reset_index(inplace=True, drop=True)
     durations = [date.day for date in df_all_plot['Date']]
@@ -1473,12 +1527,81 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice, stat_choice, c
     df_all_plot.rename(c_field_list, axis='columns', inplace=True)
     var_list_final = [c_field_list[var] for var in var_list_final]
 
+    # if we are sorting by WYT we need to do some work before switching to wide frame
+    if (len(str(period_choice)) >= 3) and (period_choice[:3] == 'WYT') or period_choice == 'SHASTABIN_':
+        # sort for the years we want
+        # see if any years are selected
+        if not li_wyt_selected:
+            return pn.pane.Markdown("## No data to display")
+
+        # we do have some selected
+        # what the column with the wyt is called
+        s_wyt_col = c_field_list[period_choice]
+
+        # select just september since that will have the correct wyt
+        df_septembers = df_all_plot[df_all_plot['Month'] == 9]
+
+        # pull the years and scenarios that match the selected wyts
+        df_wy_to_use = df_septembers[df_septembers[s_wyt_col].isin(li_wyt_selected)][['Scenario', 'OctSeptYear', s_wyt_col]]
+        # dictionary to hold {(scenario, WY): WYT}
+        c_wy_to_wyt = {}
+        for index, row in df_wy_to_use.iterrows():
+            c_wy_to_wyt[(row['Scenario'], row['OctSeptYear'])] = row[s_wyt_col]
+
+        # Assign wyt column to be the final wyt
+        def wy_to_wyt(wyt_dict, scen, year):
+            try:
+                return wyt_dict[(scen, year)]
+            except:
+                return np.nan
+
+        df_all_plot[s_wyt_col] = df_all_plot.apply(lambda row: wy_to_wyt(c_wy_to_wyt, row['Scenario'], row['OctSeptYear']), axis=1)
+
     # Sortable, filter to target scenarios and vars
     df_wide = pd.DataFrame(df_all_plot['Date'].unique(), columns=['Date'])
     df_wide[['Month']] = df_all_plot.loc[df_all_plot['Scenario'] == scenario_list[0]][['Month']].reset_index(drop=True)
     df_wide.reset_index(inplace=True, drop=True)
 
     keeplist = ['Month']
+
+    # this will stay empty unless we have a wyt selected
+    s_title = ''
+
+    # if grouping by wyt we need to include that variable
+    if (len(str(period_choice)) >= 3) and (period_choice[:3] == 'WYT') or period_choice == 'SHASTABIN_':
+        # to hold the wyt columns so we can filter with them but they dont end up in keeplist
+        ls_wyt_cols = []
+        for scenario in scenario_list:
+            df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][[s_wyt_col]]
+            df_temp.reset_index(inplace=True, drop=True)
+            col_names = [f'{scenario}: {s_wyt_col}']
+            df_temp.columns = col_names
+            df_wide[col_names] = df_temp[col_names]
+            for name in col_names:
+                ls_wyt_cols.append(name)
+        df_wide = df_wide.dropna(subset=ls_wyt_cols, how='all')
+        # create a title that displays the WYTs
+        c_no_unit_names = {
+            'WYT_SAC_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
+            'WYT_SJR_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
+            'WYT_TRIN_': {1: 'Extremely Wet', 2: 'Wet', 3: 'Normal', 4: 'Dry', 5: 'Critically Dry'},
+            'WYT_SHASTA_CVP_': {0: 'Non-Critical', 1: 'ShastaCritical'},
+            'WYT_FEATHER_': {1: 'Non-Critical', 2: 'Critically Dry'},
+            'WYT_SJRRP_DV': {1: 'Wet', 2: 'Normal-Wet', 3: 'Normal-Dry', 4: 'Dry', 5: 'Critical High', 6: 'Critical Low'},
+            'WYT_AMERD983_CVP_': {1: 'Non-Critical', 2: 'Critically Dry'},
+            'SHASTABIN_': {1: '1a', 2: '1b', 3: '2a', 4: '2b', 5: '3a', 6: '3b'}
+        }
+        try:
+            if period_choice[:3] == 'WYT':
+                s_all_sel_wyt = 'All' if len(li_wyt_selected) == len(list(c_no_unit_names[period_choice].keys())) else ', '.join(
+                    [c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
+            else:
+                s_all_sel_wyt = ', '.join([c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
+        except:
+            c_no_unit_names[period_choice] = {wyt: wyt for wyt in li_wyt_selected}
+            s_all_sel_wyt = 'All' if len(li_wyt_selected) == len(list(c_no_unit_names[period_choice].keys())) else ', '.join(
+                [c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
+        s_title = '## ' + s_wyt_col + ': ' + s_all_sel_wyt + ' Years'
 
     for scenario in scenario_list:
         df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][var_list_final]
@@ -1488,7 +1611,6 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice, stat_choice, c
         df_wide[col_names] = df_temp[col_names]
         for name in col_names:
             keeplist.append(name)
-
     df_grouped = df_wide[keeplist].groupby('Month')
 
     if stat_choice == 'Average':
@@ -1525,6 +1647,9 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice, stat_choice, c
                 df_exceed.loc[i_exceedance_prob] = pd.Series(dtype='float32')
                 df_exceed.interpolate(method='index', inplace=True)
                 df_plot.loc[month, df_exceed.columns] = df_exceed.loc[i_exceedance_prob]
+    # round to one decimal
+    df_plot = df_plot.round(1)
+    df_wide = df_wide.round(1)
 
     # reorder to be in water year
     df_plot = df_plot.reindex(index=[10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9])
@@ -1535,22 +1660,22 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice, stat_choice, c
 
     # if doing difference plot, add horizontal line
     if b_diffs_flag:
-        return pn.Column(pn.pane.HoloViews(hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
+        return pn.Column(s_title, pn.pane.HoloViews((hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
             x='Month',
             min_height=600,
             xlabel='Month',
             ylabel=stat_choice + ' ' + unit_choice,
             grid=True
-        ),
+        )).opts(legend_position='bottom', legend_cols=1),
             sizing_mode='stretch_width', linked_axes=False),
             pn.pane.DataFrame(df_wide, index=False, max_height=500))
     else:
-        return pn.Column(pn.pane.HoloViews(df_plot.hvplot(
+        return pn.Column(s_title, pn.pane.HoloViews((hv.HLine(0).opts(line_width=0) * df_plot.hvplot(
             x='Month',
             min_height=600,
             xlabel='Month',
             ylabel=stat_choice + ' ' + unit_choice,
             grid=True
-        ),
+        )).opts(legend_position='bottom', legend_cols=1),
             sizing_mode='stretch_width', linked_axes=False),
             pn.pane.DataFrame(df_wide, index=False, max_height=500))
