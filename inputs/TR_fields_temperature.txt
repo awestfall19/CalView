@@ -1,0 +1,95 @@
+Stor-Temp/Stor-Temp/Storage.lt.45.00F	Vol below 45
+Stor-Temp/Stor-Temp/Storage.lt.50.00F	Vol below 50
+Stor-Temp/Stor-Temp/Storage.lt.55.00F	Vol below 55
+Stor-Temp/Stor-Temp/Storage.lt.60.00F	Vol below 60
+Stor-Temp/Stor-Temp/Storage.lt.65.00F	Vol below 65
+Stor-Temp/Stor-Temp/Storage.lt.70.00F	Vol below 70
+Stor-Temp/Stor-Temp/Storage.lt.99.00F	Vol below 99
+CALSIM/C_KSWCK/CHANNEL	Keswick Rel
+CALSIM/C_NTOMA/CHANNEL	Natoma Rel
+CALSIM/C_SHSTA/CHANNEL	Shasta Rel
+CALSIM/C_FOLSM/CHANNEL	Folsom Rel
+CALSIM/I_SHSTA/INFLOW	Shasta Inflow
+CALSIM/I_FOLSM/INFLOW	Folsom Inflow
+CALSIM/C_KSWCK_ADD/FLOW-ADDITIONAL-INSTREAM	C_KSWCK_ADD
+CALSIM/C_SAC120_ADD/FLOW-ADDITIONAL-INSTREAM	C_SAC120_ADD
+CALSIM/C_NTOMA_ADD/FLOW-ADD-INSTREAM	C_NTOMA_ADD
+CALSIM/C_AMR004_ADD/FLOW-ADDITIONAL-INSTREAM	C_AMR004_ADD
+CALSIM/NDOI_ADD_CVP/FLOW-CHANNEL	NDOI_ADD_CVP
+CALSIM/C_SAC017_ADD/FLOW-ADDITIONAL-INSTREAM	C_SAC017_ADD
+CALSIM/S_SHSTA/STORAGE	Shasta Storage
+CALSIM/S_FOLSM/STORAGE	Folsom Storage
+CALSIM/S_SHSTALEVEL5DV/STORAGE-LEVEL	S_SHSTALEVEL5DV
+CALSIM/S_FOLSMLEVEL5DV/STORAGE-LEVEL	S_FOLSMLEVEL5DV
+SACRAMENTO/AIRPORT/TEMP_F	Temperature at Airport Road
+SACRAMENTO/HWY44/TEMP_F	Temperature at Highway 44
+SACRAMENTO/BLW CLEAR CREEK/TEMP_F	Temperature at Clear Creek
+AMERICAN/WILLIAM POND PARK/TEMP_F	Temperature at William Pond Park
+AMERICAN/BLW NIMBUS(HAZEL AVE)/TEMP_F	Temperature at Hazel Ave
+TRINITY/TRINITY/STORAGE	Trinity Storage
+SACRAMENTO/SHASTA/STORAGE	Shasta Storage
+CLEAR CREEK/WHISKEYTOWN/STORAGE	Whiskeytown Storage
+STONY CREEK/BLACK BUTTE/STORAGE	Black Butte Storage
+TRINITY/BLW TINITY DAM/FLOW	Trinity River Below Trinity Dam Flow
+TRINITY/BLW LEWISTON/FLOW	Trinity River Below Lewiston Flow
+CLEAR CREEK/SPRING_CR_TUNNEL/FLOW	Spring Creek Tunnel Flow
+CLEAR CREEK/CLEAR_CR_TUNNEL/FLOW	Clear Creek Tunnel Flow
+CLEAR CREEK/ABV SACRAMENTO/FLOW	Clear Creek Above Sacramento River Flow
+SACRAMENTO/BLW SHASTA/FLOW	Sacramento River Below Shasta Flow
+SACRAMENTO/BLW KESWICK/FLOW	Sacramento River Below Keswick Flow
+SACRAMENTO/BLW CLEAR CREEK/FLOW	Sacramento River Below Clear Creek Flow
+SACRAMENTO/BALLS FERRY/FLOW	Sacramento River at Balls Ferry Flow
+SACRAMENTO/JELLYS FERRY/FLOW	Sacramento River at Jellys Ferry Flow
+SACRAMENTO/BEND BRIDGE/FLOW	Sacramento River at Bend Bridge Flow
+SACRAMENTO/RED BLUFF DAM/FLOW	Sacramento River Below Red Bluff Diversion Dam Flow
+SACRAMENTO/WOODSON BRIDGE/FLOW	Sacramento River at Woodson Bridge Flow
+SACRAMENTO/BUTTE_CITY/FLOW	Sacramento River at Butte City Flow
+TRINITY/BLW TINITY DAM/TEMP_F	Trinity River Below Trinity Dam Temperature
+TRINITY/BLW LEWISTON/TEMP_F	Trinity River Below Lewiston Temperature
+CLEAR CREEK/SPRING_CR_TUNNEL/TEMP_F	Spring Creek Tunnel Temperature
+CLEAR CREEK/CLEAR_CR_TUNNEL/TEMP_F	Clear Creek Tunnel Temperature
+CLEAR CREEK/ABV SACRAMENTO/TEMP_F	Clear Creek Above Sacramento River Temperature
+SACRAMENTO/BLW SHASTA/TEMP_F	Sacramento River Below Shasta Temperature
+SACRAMENTO/BLW KESWICK/TEMP_F	Sacramento River Below Keswick Temperature
+SACRAMENTO/BLW CLEAR CREEK/TEMP_F	Sacramento River Below Clear Creek Temperature
+SACRAMENTO/BALLS FERRY/TEMP_F	Sacramento River at Balls Ferry Temperature
+SACRAMENTO/JELLYS FERRY/TEMP_F	Sacramento River at Jellys Ferry Temperature
+SACRAMENTO/BEND BRIDGE/TEMP_F	Sacramento River at Bend Bridge Temperature
+SACRAMENTO/RED BLUFF DAM/TEMP_F	Sacramento River Below Red Bluff Diversion Dam Temperature
+SACRAMENTO/WOODSON BRIDGE/TEMP_F	Sacramento River at Woodson Bridge Temperature
+SACRAMENTO/BUTTE_CITY/TEMP_F	Sacramento River at Butte City Temperature
+Stor-Temp/FOLSOM/STORAGE	Folsom Storage
+AMERICAN/BLW FOLSOM DAM/FLOW	American River below Folsom Dam Flow
+AMERICAN/BLW NIMBUS(HAZEL AVE)/FLOW	American River below Nimbus Dam Flow
+AMERICAN/WILLIAM POND PARK/FLOW	American River at William Pond Park Flow
+AMERICAN/WATT AVE/FLOW	American River at Watt Avenue Flow
+AMERICAN/ABV CONFLUENCE/FLOW	American River Above American River Confluence
+AMERICAN/BLW FOLSOM DAM/TEMP_F	American River below Folsom Dam Temperature
+AMERICAN/BLW NIMBUS(HAZEL AVE)/TEMP_F	American River below Nimbus Dam Temperature
+AMERICAN/WILLIAM POND PARK/TEMP_F	American River at William Pond Park Temperature
+AMERICAN/WATT AVE/TEMP_F	American River at Watt Avenue Temperature
+AMERICAN/ABV CONFLUENCE/TEMP_F	American River Above American River Confluence
+STANISLAUS/NEW MELONES/STORAGE	New Melones Storage
+STANISLAUS/BLW NEW MELONES/FLOW	Stanislaus River below New Melones Flow
+STANISLAUS/BLW TULLOCH/FLOW	Stanislaus River below Tulloch Lake Flow
+STANISLAUS/BLW GOODWIN/FLOW	Stanislaus River below Goodwin Dam Flow
+STANISLAUS/BLW KF/FLOW	Stanislaus River below Knights Ferry Flow
+STANISLAUS/BLW ORBL BR/FLOW	Stanislaus River below Orange Blossom Bridge Flow
+STANISLAUS/OAKDALE H120/FLOW	Stanislaus River at Oakdale Highway 120 Flow
+STANISLAUS/BLW RIVERBANK BR/FLOW	Stanislaus River below Riverbank Bridge Flow
+STANISLAUS/BLW MCHENRY BR/FLOW	Stanislaus River below McHenry Bridge Flow
+STANISLAUS/RIPON/FLOW	Stanislaus River at Ripon Gage Flow
+SAN JOAQUIN/VERNALIS/FLOW	San Joaquin River at Vernalis Flow
+STANISLAUS/BLW NEW MELONES/TEMP_F	Stanislaus River below New Melones Temperature
+STANISLAUS/BLW TULLOCH/TEMP_F	Stanislaus River below Tulloch Lake Temperature
+STANISLAUS/BLW GOODWIN/TEMP_F	Stanislaus River below Goodwin Dam Temperature
+STANISLAUS/BLW KF/TEMP_F	Stanislaus River below Knights Ferry Temperature
+STANISLAUS/BLW ORBL BR/TEMP_F	Stanislaus River below Orange Blossom Bridge Temperature
+STANISLAUS/OAKDALE H120/TEMP_F	Stanislaus River at Oakdale Highway 120 Temperature
+STANISLAUS/BLW RIVERBANK BR/TEMP_F	Stanislaus River below Riverbank Bridge Temperature
+STANISLAUS/BLW MCHENRY BR/TEMP_F	Stanislaus River below McHenry Bridge Temperature
+STANISLAUS/RIPON/TEMP_F	Stanislaus River at Ripon Gage Temperature
+SAN JOAQUIN/VERNALIS/TEMP_F	San Joaquin River at Vernalis Temperature
+CALSIM/WYT_SAC_/WATERYEARTYPE	Sac Index Water Year Type
+CALSIM/WYT_SJR_/WATERYEARTYPE	SJR Index Water Year Type
+CALSIM/WYT_TRIN_/WATERYEARTYPE	Trinity Index Water Year Type

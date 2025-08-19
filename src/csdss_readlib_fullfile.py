@@ -7,11 +7,17 @@ import time
 import pickle
 from multiprocessing import Pool
 from os import path
+import warnings
+from collections import Counter
 
-
-def get_trend_fields():
+def get_trend_fields(s_fields_file):
     """
     Gets the fields from TR_fields.txt
+
+    Parameters
+    ----------
+    s_fields_file: str
+        name of fields file
 
     Returns
     -------
@@ -22,7 +28,7 @@ def get_trend_fields():
     c_tr_fields = {}
     try:
         # this line is needed for the file to correctly be found once this is bundled into an executable
-        s_path_to_fields = path.abspath(path.join(path.dirname(__file__), '..', 'inputs', 'TR_fields.txt'))
+        s_path_to_fields = path.abspath(path.join(path.dirname(__file__), '..', 'inputs', s_fields_file))
         with open(s_path_to_fields, "r") as f:
             lines = f.readlines()
     except:
@@ -36,7 +42,10 @@ def get_trend_fields():
             continue
         else:
             field, description = curr_field
-        field = field.strip(' ').upper()
+        if '/' not in field:
+            field = field.strip(' ').upper()
+        else:
+            field = field.strip(' ')
         description = description.strip('\n')
         description = description + ' (' + field + ')'
         c_tr_fields[field] = description
@@ -66,7 +75,6 @@ def pickler(append_list, baseline_stack, c_default_units, c_field_list):
     -------
     none
     """
-    df_all_data = pd.DataFrame()
     df_all_data = pd.concat(append_list)
     df_all_data.reset_index(drop=True, inplace=True)
     df_all_data.index.name = "Index"
@@ -181,7 +189,7 @@ def load_pickles(ls_files):
     return (df_all_data, df_diffs, c_default_units, c_field_list)
 
 
-def single_file_pull(dss_file, c_target_ts_list, scenario_name):
+def single_file_pull(dss_file, c_target_ts_list, scenario_name, s_flag):
     """
     Reads in a single DSS file
 
@@ -193,6 +201,8 @@ def single_file_pull(dss_file, c_target_ts_list, scenario_name):
         Dictionary of fields to pull
     scenario_name: str
         Name for this scenario
+    s_flag: str
+        Flag for version
 
     Returns
     -------
@@ -203,9 +213,6 @@ def single_file_pull(dss_file, c_target_ts_list, scenario_name):
     c_default_units: dict
         Dictionary of default units for each field
     """
-    startDate = "31OCT1921 00:00:00"
-    endDate = "30SEP2021 00:00:00"
-    startDate_1 = datetime.date(1921, 10, 31)
 
     fid = HecDss.Open(dss_file)
 
@@ -225,100 +232,69 @@ def single_file_pull(dss_file, c_target_ts_list, scenario_name):
     dfPaths = dfPaths.reset_index()
     dfPaths.drop('index', axis=1, inplace=True)
 
+    # dataframe to hold all the data pulled
+    df_ts = pd.DataFrame()
+
+    # list of fields we found, start with all
     c_target_ts_list_final = c_target_ts_list.copy()
-    # use our list of variables to search the DSS File. For CS3, b parts are unique
-    target_path_list = []
+
+    # to hold the units
+    c_default_units = {}
+
     for b_part in c_target_ts_list.keys():
-        # make sure it is uppercase
-        b_part_upper = b_part.upper()
         try:
-            c_part = dfPaths[dfPaths['B'] == b_part]['C'].iloc[0]
-            a_part = dfPaths[dfPaths['B'] == b_part]['A'].iloc[0]
-            f_part = dfPaths[dfPaths['B'] == b_part]['F'].iloc[0]
-            target_pathName = f'/{a_part}/{b_part_upper}/{c_part}//1MON/{f_part}/'
-            target_path_list.append(target_pathName)
+            if s_flag == 'calsim':
+                c_part = dfPaths[dfPaths['B'] == b_part]['C'].iloc[0]
+                a_part = dfPaths[dfPaths['B'] == b_part]['A'].iloc[0]
+                f_part = dfPaths[dfPaths['B'] == b_part]['F'].iloc[0]
+                e_part = dfPaths[dfPaths['B'] == b_part]['E'].iloc[0]
+                target_pathName = f'/{a_part}/{b_part}/{c_part}//{e_part}/{f_part}/'
+
+            elif s_flag == 'temperature':
+                f_part = dfPaths[dfPaths[['A', 'B', 'C']].agg('/'.join, axis=1) == b_part]['F'].iloc[0]
+                e_part = dfPaths[dfPaths[['A', 'B', 'C']].agg('/'.join, axis=1) == b_part]['E'].iloc[0]
+                target_pathName = f'/{b_part}//{e_part}/{f_part}/'
+
+            elif s_flag == 'salinity':
+                warnings.warn("Salinity not implimented yet")
+
+            # pull current path
+            working_ts = fid.read_ts(target_pathName, trim_missing=True)
+
+            # add in units
+            c_default_units[b_part] = working_ts.units
+
+            # add it to full dataframe
+            df_working = pd.DataFrame(working_ts.values.astype('float64'), index=working_ts.pytimes, columns=[b_part])
+            df_ts = df_ts.merge(right=df_working, how='outer', left_index=True, right_index=True)
+
         except:
+            # it is fails, remove it from the list
             c_target_ts_list_final.pop(b_part)
 
-    # Empty lists for timeseries
-    ts_list = []
-    c_default_units = pd.Series()
-    # iterate through list of variables and populate the timeseries and unit lists
-    for i, p in enumerate(target_path_list):
-        working_ts = fid.read_ts(p, window=(startDate, endDate), trim_missing=False)
-        ts_list.append(working_ts)
-        # unit_list.append(working_ts.units)
-        c_default_units[list(c_target_ts_list_final.keys())[i]] = working_ts.units
+    # Close the dss file
+    fid.close()
 
-    times = np.array([startDate_1])
-    years = [startDate_1.year]
-    months = [startDate_1.month]
-
-    # Convert CY to WY
-    if startDate_1.month > 9:
-        wy = [startDate_1.year + 1]
-    else:
-        wy = [startDate_1.year]
-
-    # Convert CY to delivery (contract) year
-    if startDate_1.month < 3:
-        cy = [startDate_1.year - 1]
-    else:
-        cy = startDate_1.year
-
-    # Note loops starts at 1 not zero
-    for i in range(1, len(ts_list[0].values)):
-        # hack to find end of month: look at last date (should be last day of last month)
-        # Add a day (first day of this month), then add a month (first day of next month)
-        # Subtract a day (last day of this month)
-        current_time = times[i - 1] \
-                       + relativedelta(days=+1) \
-                       + relativedelta(months=+1) \
-                       - relativedelta(days=+1)
-        times = np.append(times, current_time)
-        years = np.append(years, current_time.year)
-        months = np.append(months, current_time.month)
-        if current_time.month > 9:
-            wy = np.append(wy, current_time.year + 1)
-        else:
-            wy = np.append(wy, current_time.year)
-
-        if current_time.month < 3:
-            cy = np.append(cy, current_time.year - 1)
-        else:
-            cy = np.append(cy, current_time.year)
-
-    df_ts = pd.DataFrame(index=times)
-    for t, ts in enumerate(list(c_target_ts_list_final.keys())):
-        if isinstance(ts_list[t].values[0], np.float32):
-            df_ts[ts] = ts_list[t].values.astype('float64')
-        else:
-            df_ts[ts] = ts_list[t].values
-
-    df_ts.insert(0, 'JanDecYear', years)
-    df_ts.insert(0, 'MarFebYear', cy)
-    df_ts.insert(0, 'OctSeptYear', wy)
-    df_ts.insert(0, 'Month', months)
-    df_ts.insert(0, 'Year', years)
-    df_ts.insert(0, 'Scenario', scenario_name)
-    df_ts['Date'] = df_ts.index
-    date_temp = df_ts.pop('Date')
-    df_ts.insert(0, 'Date', date_temp)
+    if not df_ts.empty:
+        # move dates back by one day
+        df_ts.index = df_ts.index + datetime.timedelta(days=-1)
 
     return df_ts, c_target_ts_list_final, c_default_units
 
 
-def file_reader(runs: list[list], c_field_list, s_comparison):
+def file_reader(runs: list[list], c_field_list, s_comparison, s_flag):
     """
     reads in the list of runs. can be multiproccessing or not by changing multiprocess to True.
     Parameters
     ----------
     runs: list
-        list of runs and run names in the form [["Description_1", ("File_1.dss")], ...]
+        list of runs and run names in the form [["Description_1", ("File_1.dss")], ...] or [["Description_1", {'calsim': '...', ...}], ...]
     c_field_list: dict
         dictionary of fields and descriptions {field: description, ...}
     s_comparison: str
         name of the comparison scenario
+    s_flag: str
+        Flag for version
 
     Returns
     -------
@@ -333,8 +309,15 @@ def file_reader(runs: list[list], c_field_list, s_comparison):
 
     """
     results = {}
-    c_field_list_final = c_field_list.copy()
     c_default_units_all = {}
+    if s_flag == 'calsim':
+        c_field_list_final = c_field_list.copy()
+    elif s_flag == 'temperature':
+        c_calsim_fields = {field: c_field_list[field] for field in c_field_list if field.split('/')[0] == 'CALSIM'}
+        c_hec5q_fields = {field: c_field_list[field] for field in c_field_list if field not in c_calsim_fields}
+        c_field_list_final = {}
+    elif s_flag == 'salinity':
+        warnings.warn("Salinity not yet implemented.")
 
     multiprocess = False
 
@@ -342,42 +325,200 @@ def file_reader(runs: list[list], c_field_list, s_comparison):
     if multiprocess == False:
         for run in runs:
             print('Working on', run[0])
-            result, c_target_ts_list, c_default_units = \
-                single_file_pull(run[1], c_field_list, run[0])
 
-            # make sure to remove ones that were not found
-            c_field_list_final = {field: c_field_list_final[field] for field in c_field_list_final if field in c_target_ts_list}
+            if s_flag == 'calsim':
+                df_all_data, c_target_ts_list, c_default_units = \
+                    single_file_pull(run[1], c_field_list, run[0], s_flag)
 
-            # add into dictionary to store
-            c_default_units_all.update(c_default_units)
-            results[run[0]] = result
-    else:
-        # create pool
-        pool = Pool()
-        # Create and start runs
-        for run in runs:
-            print(f'Working on {run[0]} - multiproc')
-            result, c_target_ts_list, c_default_units = pool.apply_async(single_file_pull,
-                                                                       args=(run[1], c_field_list, run[0])).get()
+                # Since these are all monthly, we can drop any rows with nans and only keep rows with all the data
+                df_all_data.dropna(how='any', inplace=True)
 
-            # make sure to remove ones that were not found
-            c_field_list_final = {field: c_field_list_final[field] for field in c_field_list_final if field in c_target_ts_list}
+                # Add in the columns not pulled from the DSS file
+                # Calender year, month, water year, contract year
+                df_all_data.insert(0, 'JanDecYear', df_all_data.index.year)
+                df_all_data.insert(0, 'Month', df_all_data.index.month)
+                df_all_data.insert(0, 'Year', df_all_data.index.year)
+                df_all_data.insert(0, 'MarFebYear', np.where(df_all_data['Month'] >= 3, df_all_data['Year'], df_all_data['Year'] - 1))
+                df_all_data.insert(0, 'OctSeptYear', np.where(df_all_data['Month'] <= 9, df_all_data['Year'], df_all_data['Year'] + 1))
 
-            # add into dictionary to store
-            c_default_units_all.update(c_default_units)
-            results[run[0]] = result
+                # add scenario name
+                df_all_data.insert(0, 'Scenario', run[0])
 
-        # close the process pool
-        pool.close()
-        # wait for all tasks to finish
-        pool.join()
+                # make date a column
+                df_all_data['Date'] = df_all_data.index
+                date_temp = df_all_data.pop('Date')
+                df_all_data.insert(0, 'Date', date_temp)
+
+                # make sure to remove ones that were not found
+                c_field_list_final = {field: c_field_list_final[field] for field in c_field_list_final if field in c_target_ts_list}
+
+                # add into dictionary to store
+                c_default_units_all.update(c_default_units)
+                results[run[0]] = df_all_data
+
+            elif s_flag == 'temperature':
+                # run[0] will be name and run[1] will be the dictionary
+
+                # from calsim, we only care about shatabin or wyts
+                df_calsim_SV_result, c_calsim_SV_target_ts_list, c_calsim_SV_default_units = single_file_pull(run[1]['calsim_SV'], c_calsim_fields, run[0], s_flag)
+                df_calsim_DV_result, c_calsim_DV_target_ts_list, c_calsim_DV_default_units = single_file_pull(run[1]['calsim_DV'], c_calsim_fields, run[0], s_flag)
+
+                # everything else we will try to pull from the other files
+                df_SR_WQ_result, c_SR_WQ_target_ts_list, c_SR_WQ_default_units = single_file_pull(run[1]['SR_WQ_Report'], c_hec5q_fields, run[0], s_flag)
+                df_AR_WQ_result, c_AR_WQ_target_ts_list, c_AR_WQ_default_units = single_file_pull(run[1]['AR_WQ_Report'], c_hec5q_fields, run[0], s_flag)
+                df_s_CALSIMII_result, c_s_CALSIMII_target_ts_list, c_s_CALSIMII_default_units = single_file_pull(run[1]['s_CALSIMII_HEC5Q'], c_hec5q_fields, run[0], s_flag)
+                df_a_CALSIMII_result, c_a_CALSIMII_target_ts_list, c_a_CALSIMII_default_units = single_file_pull(run[1]['a_CALSIMII_HEC5Q'], c_hec5q_fields, run[0], s_flag)
+
+                o_field_counts = Counter(c_SR_WQ_target_ts_list.keys())
+                o_field_counts.update(c_AR_WQ_target_ts_list.keys())
+                o_field_counts.update(c_s_CALSIMII_target_ts_list.keys())
+                o_field_counts.update(c_a_CALSIMII_target_ts_list.keys())
+                sl_duplicate_fields = [item for item, count in o_field_counts.items() if count > 1]
+
+                for field in sl_duplicate_fields:
+                    if field in c_SR_WQ_target_ts_list:
+                        # what we will rename to
+                        s_new_field = field + ' SR'
+
+                        # update dataframe
+                        df_SR_WQ_result.rename(columns={field: s_new_field}, inplace=True)
+
+                        # update dictionaries
+                        c_SR_WQ_target_ts_list[s_new_field] = c_SR_WQ_target_ts_list[field][:-1] + ' SR)'
+                        c_SR_WQ_target_ts_list.pop(field)
+                        c_SR_WQ_default_units[s_new_field] = c_SR_WQ_default_units[field]
+                        c_SR_WQ_default_units.pop(field)
+                    if field in c_AR_WQ_target_ts_list:
+                        # what we will rename to
+                        s_new_field = field + ' AR'
+
+                        # update dataframe
+                        df_AR_WQ_result.rename(columns={field: s_new_field}, inplace=True)
+
+                        # update dictionaries
+                        c_AR_WQ_target_ts_list[s_new_field] = c_AR_WQ_target_ts_list[field][:-1] + ' AR)'
+                        c_AR_WQ_target_ts_list.pop(field)
+                        c_AR_WQ_default_units[s_new_field] = c_AR_WQ_default_units[field]
+                        c_AR_WQ_default_units.pop(field)
+
+                    if field in c_s_CALSIMII_target_ts_list:
+                        # what we will rename to
+                        s_new_field = field + ' SR in'
+
+                        # update dataframe
+                        df_s_CALSIMII_result.rename(columns={field: s_new_field}, inplace=True)
+
+                        # update dictionaries
+                        c_s_CALSIMII_target_ts_list[s_new_field] = c_s_CALSIMII_target_ts_list[field][:-1] + ' SR in)'
+                        c_s_CALSIMII_target_ts_list.pop(field)
+                        c_s_CALSIMII_default_units[s_new_field] = c_s_CALSIMII_default_units[field]
+                        c_s_CALSIMII_default_units.pop(field)
+                    if field in c_a_CALSIMII_target_ts_list:
+                        # what we will rename to
+                        s_new_field = field + ' AR in'
+
+                        # update dataframe
+                        df_a_CALSIMII_result.rename(columns={field: s_new_field}, inplace=True)
+
+                        # update dictionaries
+                        c_a_CALSIMII_target_ts_list[s_new_field] = c_a_CALSIMII_target_ts_list[field][:-1] + ' AR in)'
+                        c_a_CALSIMII_target_ts_list.pop(field)
+                        c_a_CALSIMII_default_units[s_new_field] = c_a_CALSIMII_default_units[field]
+                        c_a_CALSIMII_default_units.pop(field)
+
+                # Crop the calsim results to the rows with all non-nans
+                df_calsim_SV_result.dropna(how='any', inplace=True)
+                df_calsim_DV_result.dropna(how='any', inplace=True)
+
+                # Crop the input files to the range of the output files
+                if not df_a_CALSIMII_result.empty:
+                    df_a_CALSIMII_result = df_a_CALSIMII_result[df_AR_WQ_result.index[0]: df_AR_WQ_result.index[-1]]
+                if not df_s_CALSIMII_result.empty:
+                    df_s_CALSIMII_result = df_s_CALSIMII_result[df_SR_WQ_result.index[0]: df_SR_WQ_result.index[-1]]
+
+                # Combine the data from all the DSS files
+                # Keep everything from one data frame but other fields from the rest, so we only have one copy of dat/Year/Month/etc.
+                df_all_data = pd.concat([df_s_CALSIMII_result, df_a_CALSIMII_result, df_SR_WQ_result, df_AR_WQ_result, df_calsim_SV_result, df_calsim_DV_result], axis=1, join='outer')
+
+                # Add in the columns not pulled from the DSS file
+                # Calender year, month, water year, contract year
+                df_all_data.insert(0, 'JanDecYear', df_all_data.index.year)
+                df_all_data.insert(0, 'Month', df_all_data.index.month)
+                df_all_data.insert(0, 'Year', df_all_data.index.year)
+                df_all_data.insert(0, 'MarFebYear', np.where(df_all_data['Month'] >= 3, df_all_data['Year'], df_all_data['Year'] - 1))
+                df_all_data.insert(0, 'OctSeptYear', np.where(df_all_data['Month'] <= 9, df_all_data['Year'], df_all_data['Year'] + 1))
+
+                # add scenario name
+                df_all_data.insert(0, 'Scenario', run[0])
+
+                # make date a column
+                df_all_data['Date'] = df_all_data.index
+                date_temp = df_all_data.pop('Date')
+                df_all_data.insert(0, 'Date', date_temp)
+
+                # combine all field lists together
+                c_field_list_curr = c_calsim_SV_target_ts_list | c_calsim_DV_target_ts_list | c_SR_WQ_target_ts_list | c_AR_WQ_target_ts_list | c_s_CALSIMII_target_ts_list | c_a_CALSIMII_target_ts_list
+                c_field_list_final.update(c_field_list_curr)
+
+
+                # add units into dictionary to store
+                c_default_units_all.update(c_calsim_SV_default_units)
+                c_default_units_all.update(c_calsim_DV_default_units)
+                c_default_units_all.update(c_SR_WQ_default_units)
+                c_default_units_all.update(c_AR_WQ_default_units)
+                c_default_units_all.update(c_s_CALSIMII_default_units)
+                c_default_units_all.update(c_a_CALSIMII_default_units)
+
+                results[run[0]] = df_all_data
+            elif s_flag == 'salinity':
+                warnings.warn("Salinity not implemented yet")
+    # else:
+    #     # create pool
+    #     pool = Pool()
+    #     # Create and start runs
+    #     for run in runs:
+    #         print(f'Working on {run[0]} - multiproc')
+    #         result, c_target_ts_list, c_default_units = pool.apply_async(single_file_pull,
+    #                                                                    args=(run[1], c_field_list, run[0], s_flag)).get()
+    #
+    #         # make sure to remove ones that were not found
+    #         c_field_list_final = {field: c_field_list_final[field] for field in c_field_list_final if field in c_target_ts_list}
+    #
+    #         # add into dictionary to store
+    #         c_default_units_all.update(c_default_units)
+    #         results[run[0]] = result
+    #
+    #     # close the process pool
+    #     pool.close()
+    #     # wait for all tasks to finish
+    #     pool.join()
+
+    # since the set up of the temperature version allowed for fields to be in one run but not another, we need to remove any that are like this
+    if s_flag == 'temperature':
+
+        # count the number of times each column is used
+        ls_all_fields = np.concatenate([df.columns for df in results.values()], axis=None)
+        o_field_counts = Counter(ls_all_fields)
+
+        # if its not one for each run, we will remove
+        ls_fields_remove = [field for field in o_field_counts if o_field_counts[field] != len(runs)]
+
+        # remove from dictionaries and dataframes
+        for field in ls_fields_remove:
+            c_field_list_final.pop(field)
+            c_default_units_all.pop(field)
+            for run in results:
+                results[run].drop(field, axis=1, inplace=True, errors='ignore')
 
     append_list = []
     baseline_stack = []
 
     # add calculated fields
     for i in range(len(runs)):
-        results[runs[i][0]], c_field_list_final, c_default_units_all = calculated_fields(results[runs[i][0]], c_field_list_final, c_default_units_all)
+        results[runs[i][0]], c_field_list_temp, c_default_units_temp = calculated_fields(results[runs[i][0]], c_field_list_final, c_default_units_all)
+
+    c_field_list_final = c_field_list_temp
+    c_default_units_all = c_default_units_temp
 
     for i in range(len(runs)):
         append_list.append(results[runs[i][0]])
@@ -389,9 +530,15 @@ def file_reader(runs: list[list], c_field_list, s_comparison):
 
     # add s_comparison to c_default_units so we have it stored
     c_default_units_all['comparison scenario'] = s_comparison
+
     # add the run names in
     for run_name, file_name in runs:
-        c_default_units_all[run_name] = path.basename(file_name)
+        if s_flag == 'calsim':
+            c_default_units_all[run_name] = path.basename(file_name)
+        elif s_flag == 'temperature':
+            c_default_units_all[run_name] = file_name
+        elif s_flag == 'salinity':
+            warnings.warn("Salinity not implemented")
 
     return append_list, baseline_stack, c_default_units_all, c_field_list_final
 
@@ -418,6 +565,10 @@ def calculated_fields(df_all, c_field_list, c_default_units):
     c_default_units: dict
             Dictionary of default units for each field with calculated fields
     """
+    # Copy input dictionaries
+    c_field_list_curr = c_field_list.copy()
+    c_default_units_curr = c_default_units.copy()
+
     # dictionary of what fields each calculated field needs
     c_fields_for_calculated = {
         'Total System Storage SWP and CVP': ['S_TRNTY', 'S_SHSTA', 'S_OROVL', 'S_FOLSM', 'S_SLUIS_CVP', 'S_SLUIS_SWP'],
@@ -430,7 +581,16 @@ def calculated_fields(df_all, c_field_list, c_default_units):
         'Stanislaus River Delivery - Oakdale North / SSJID 1+2': ['D_STS059_OAK001', 'D_SSJ004_61_PA1', 'D_WDWRD_61_PA3', 'D_WTPDGT_61_NU2'],
         'CVP Delivery Total': ['DEL_CVP_TOTAL_N', 'DEL_CVP_TOTAL_S'],
         'CVP Delivery PMI N (w CCWD)': ['DEL_CVP_PMI_N', 'D420'],
-        'CVP Delivery North (w CCWD)': ['DEL_CVP_TOTAL_N', 'DEL_CVP_PMI_N', 'DEL_CVP_PMI_N_WAMR', 'D420']
+        'CVP Delivery North (w CCWD)': ['DEL_CVP_TOTAL_N', 'DEL_CVP_PMI_N', 'DEL_CVP_PMI_N_WAMR', 'D420'],
+        'ShaSpill': ['CALSIM/C_SHSTA/CHANNEL', 'CALSIM/C_KSWCK_ADD/FLOW-ADDITIONAL-INSTREAM', 'CALSIM/C_SAC120_ADD/FLOW-ADDITIONAL-INSTREAM',
+                     'CALSIM/C_NTOMA_ADD/FLOW-ADD-INSTREAM', 'CALSIM/C_AMR004_ADD/FLOW-ADDITIONAL-INSTREAM', 'CALSIM/NDOI_ADD_CVP/FLOW-CHANNEL',
+                     'CALSIM/C_SAC017_ADD/FLOW-ADDITIONAL-INSTREAM', 'CALSIM/S_FOLSM/STORAGE', 'CALSIM/S_SHSTALEVEL5DV/STORAGE-LEVEL',
+                     'CALSIM/S_FOLSMLEVEL5DV/STORAGE-LEVEL', 'CALSIM/S_SHSTA/STORAGE'],
+        'Cold Water Profiles': ['Stor-Temp/Stor-Temp/Storage.lt.45.00F SR', 'Stor-Temp/Stor-Temp/Storage.lt.50.00F SR', 'Stor-Temp/Stor-Temp/Storage.lt.55.00F SR',
+                                       'Stor-Temp/Stor-Temp/Storage.lt.60.00F SR', 'Stor-Temp/Stor-Temp/Storage.lt.65.00F SR', 'Stor-Temp/Stor-Temp/Storage.lt.70.00F SR',
+                                       'Stor-Temp/Stor-Temp/Storage.lt.99.00F SR', 'Stor-Temp/Stor-Temp/Storage.lt.45.00F AR', 'Stor-Temp/Stor-Temp/Storage.lt.50.00F AR',
+                                       'Stor-Temp/Stor-Temp/Storage.lt.55.00F AR', 'Stor-Temp/Stor-Temp/Storage.lt.60.00F AR', 'Stor-Temp/Stor-Temp/Storage.lt.65.00F AR',
+                                       'Stor-Temp/Stor-Temp/Storage.lt.70.00F AR', 'Stor-Temp/Stor-Temp/Storage.lt.99.00F AR'],
     }
 
     # loop through the calculate fields and try anf add them
@@ -449,10 +609,10 @@ def calculated_fields(df_all, c_field_list, c_default_units):
                 print('All units do not match for calculated variable: ', calculated_field)
 
             # add the default units
-            c_default_units[calculated_field] = ls_units[0]
+            c_default_units_curr[calculated_field] = ls_units[0]
 
             # add the new calculated variable to the field list dictionary
-            c_field_list[calculated_field] = calculated_field + ' (Calculated Field)'
+            c_field_list_curr[calculated_field] = calculated_field + ' (Calculated Field)'
 
             # add the calculated field to the dataframe
             match calculated_field:
@@ -478,6 +638,68 @@ def calculated_fields(df_all, c_field_list, c_default_units):
                     df_all[calculated_field] = df_all['DEL_CVP_PMI_N'] + df_all['D420']
                 case 'CVP Delivery North (w CCWD)':
                     df_all[calculated_field] = df_all['DEL_CVP_TOTAL_N'] - df_all['DEL_CVP_PMI_N'] + df_all['DEL_CVP_PMI_N_WAMR'] + df_all['D420']
+                case 'ShaSpill':
+                    # Calculate all the interim fields for the spills
+                    df_temp = df_all[['Scenario', 'Date'] + sl_needed_fields].dropna(how='all', subset=sl_needed_fields)
+                    df_temp['FolFC'] = np.where(abs(df_temp['CALSIM/S_FOLSM/STORAGE'] - df_temp['CALSIM/S_FOLSMLEVEL5DV/STORAGE-LEVEL']) < 0.1, 1, 0)
+                    df_temp['ShaFC'] = np.where(abs(df_temp['CALSIM/S_SHSTA/STORAGE'] - df_temp['CALSIM/S_SHSTALEVEL5DV/STORAGE-LEVEL']) < 0.1, 1, 0)
+                    df_temp['DO_CVP'] = np.where(df_temp['FolFC'] + df_temp['ShaFC'] > 0.5, df_temp[['CALSIM/NDOI_ADD_CVP/FLOW-CHANNEL', 'CALSIM/C_SAC017_ADD/FLOW-ADDITIONAL-INSTREAM']].min(axis=1), 0)
+                    df_temp['AmerExc'] = np.where(df_temp['FolFC'] > 0.5, df_temp[['CALSIM/C_NTOMA_ADD/FLOW-ADD-INSTREAM', 'CALSIM/C_AMR004_ADD/FLOW-ADDITIONAL-INSTREAM']].min(axis=1), 0)
+                    df_temp['SacExc'] = np.where(df_temp['ShaFC'] > 0.5, df_temp[['CALSIM/C_SHSTA/CHANNEL', 'CALSIM/C_KSWCK_ADD/FLOW-ADDITIONAL-INSTREAM', 'CALSIM/C_SAC120_ADD/FLOW-ADDITIONAL-INSTREAM']].min(axis=1), 0)
+                    df_temp['TotalExc'] = df_temp['SacExc'] + df_temp['AmerExc']
+                    df_temp['TrueSpill'] = df_temp[['TotalExc', 'DO_CVP']].min(axis=1)
+
+                    # Calculate the three spills
+                    df_temp['ShaSpill'] = np.where(df_temp['TrueSpill'] > 0, df_temp['SacExc'] * df_temp['TrueSpill'] / (df_temp['SacExc'] + df_temp['AmerExc']), 0)
+                    df_temp['FolSpill'] = np.where(df_temp['TrueSpill'] > 0, df_temp['AmerExc'] * df_temp['TrueSpill'] / (df_temp['SacExc'] + df_temp['AmerExc']), 0)
+                    df_temp['CVPSpill'] = df_temp['ShaSpill'] + df_temp['FolSpill']
+
+                    # also add FolSpill and CVP spill to the fields
+                    c_default_units_curr['FolSpill'] = c_default_units_curr['ShaSpill']
+                    c_default_units_curr['CVPSpill'] = c_default_units_curr['ShaSpill']
+                    c_field_list_curr['FolSpill'] = 'FolSpill (Calculated Field)'
+                    c_field_list_curr['CVPSpill'] = 'CVPSpill (Calculated Field)'
+
+                    # Add Shata spill back into the original data frame
+                    df_all = df_all.merge(df_temp[['Scenario', 'Date', 'ShaSpill', 'FolSpill', 'CVPSpill']], how='outer', on=['Date', 'Scenario'])
+                case 'Cold Water Profiles':
+                    # this calculated field is a little different
+                    # We don't actually want Cold Water Profiles Shasta as a field, so first we remove it
+                    c_field_list_curr.pop(calculated_field)
+                    c_default_units_curr.pop(calculated_field)
+
+                    # first add all of them in as fields with units of TAF
+                    ls_cold_water_field = ['<45 (Shasta)', '45-50 (Shasta)', '50-55 (Shasta)', '55-60 (Shasta)', '60-65 (Shasta)', '65-70 (Shasta)', '70+ (Shasta)',
+                                           '<45 (Folsom)', '45-50 (Folsom)', '50-55 (Folsom)', '55-60 (Folsom)', '60-65 (Folsom)', '65-70 (Folsom)', '70+ (Folsom)']
+                    for field in ls_cold_water_field:
+                        c_field_list_curr[field] = field
+                        c_default_units_curr[field] = 'TAF'
+
+                    # now we actually calculate them for shasta
+                    df_all['<45 (Shasta)'] = df_all['Stor-Temp/Stor-Temp/Storage.lt.45.00F SR'] / 1000
+                    df_all['45-50 (Shasta)'] = (df_all['Stor-Temp/Stor-Temp/Storage.lt.50.00F SR'] - df_all['Stor-Temp/Stor-Temp/Storage.lt.45.00F SR']) / 1000
+                    df_all['50-55 (Shasta)'] = (df_all['Stor-Temp/Stor-Temp/Storage.lt.55.00F SR'] - df_all['Stor-Temp/Stor-Temp/Storage.lt.50.00F SR']) / 1000
+                    df_all['55-60 (Shasta)'] = (df_all['Stor-Temp/Stor-Temp/Storage.lt.60.00F SR'] - df_all['Stor-Temp/Stor-Temp/Storage.lt.55.00F SR']) / 1000
+                    df_all['60-65 (Shasta)'] = (df_all['Stor-Temp/Stor-Temp/Storage.lt.65.00F SR'] - df_all['Stor-Temp/Stor-Temp/Storage.lt.60.00F SR']) / 1000
+                    df_all['65-70 (Shasta)'] = (df_all['Stor-Temp/Stor-Temp/Storage.lt.70.00F SR'] - df_all['Stor-Temp/Stor-Temp/Storage.lt.65.00F SR']) / 1000
+                    df_all['70+ (Shasta)'] = (df_all['Stor-Temp/Stor-Temp/Storage.lt.99.00F SR'] - df_all['Stor-Temp/Stor-Temp/Storage.lt.70.00F SR']) / 1000
+
+                    # calculate fro folsom
+                    df_all['<45 (Folsom)'] = df_all['Stor-Temp/Stor-Temp/Storage.lt.45.00F AR'] / 1000
+                    df_all['45-50 (Folsom)'] = (df_all['Stor-Temp/Stor-Temp/Storage.lt.50.00F AR'] - df_all['Stor-Temp/Stor-Temp/Storage.lt.45.00F AR']) / 1000
+                    df_all['50-55 (Folsom)'] = (df_all['Stor-Temp/Stor-Temp/Storage.lt.55.00F AR'] - df_all['Stor-Temp/Stor-Temp/Storage.lt.50.00F AR']) / 1000
+                    df_all['55-60 (Folsom)'] = (df_all['Stor-Temp/Stor-Temp/Storage.lt.60.00F AR'] - df_all['Stor-Temp/Stor-Temp/Storage.lt.55.00F AR']) / 1000
+                    df_all['60-65 (Folsom)'] = (df_all['Stor-Temp/Stor-Temp/Storage.lt.65.00F AR'] - df_all['Stor-Temp/Stor-Temp/Storage.lt.60.00F AR']) / 1000
+                    df_all['65-70 (Folsom)'] = (df_all['Stor-Temp/Stor-Temp/Storage.lt.70.00F AR'] - df_all['Stor-Temp/Stor-Temp/Storage.lt.65.00F AR']) / 1000
+                    df_all['70+ (Folsom)'] = (df_all['Stor-Temp/Stor-Temp/Storage.lt.99.00F AR'] - df_all['Stor-Temp/Stor-Temp/Storage.lt.70.00F AR']) / 1000
+
+                    # Remove the original fields, we don't want to be able to plot them
+                    for field in sl_needed_fields:
+                        c_field_list_curr.pop(field)
+                        c_default_units_curr.pop(field)
+
+                    # drop from the dataframe as well
+                    df_all.drop(sl_needed_fields, axis=1, inplace=True)
                 case _:
                     pass
-    return df_all, c_field_list, c_default_units
+    return df_all, c_field_list_curr, c_default_units_curr

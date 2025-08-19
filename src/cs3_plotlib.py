@@ -1,3 +1,5 @@
+import datetime
+
 import hvplot.pandas
 import pandas as pd
 import numpy as np
@@ -32,8 +34,8 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
     Panel Object
         Plot and table of data as a column
     """
-    df_all_plot = df_all.copy(deep=True)
-    df_all_plot.reset_index(inplace=True, drop=True)
+    df_all_plot = df_all.groupby('Scenario').resample(rule='ME', on='Date').mean()
+    df_all_plot.reset_index(inplace=True, drop=False)
     durations = [date.day for date in df_all_plot['Date']]
 
     b_diffs_flag = False
@@ -67,18 +69,24 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
 
     b_temp_flag = False
     ls_temp_vars = []
+    b_x2_flag = False
+    ls_x2_pos = []
 
     # create copy of var list since lists are mutable
     var_list_final = var_list[:]
     # Unit conversion
     for var in var_list:
         try:
-            original_unit = c_default_units[var].strip()
+            original_unit = c_default_units[var].strip().upper()
         except:
             original_unit = None
 
         # if we have any temperature vars, keep them
-        if original_unit == 'TEMP':
+        if 'X2_PRV' in var:
+            b_x2_flag = True
+            ls_x2_pos.append(var)
+        # if we have any temperature vars, keep them
+        elif original_unit == 'DEGF':
             b_temp_flag = True
             ls_temp_vars.append(var)
         elif original_unit not in ['CFS', 'TAF']:
@@ -101,11 +109,13 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
             df_all_plot[var] = \
                 np.multiply(df_all_plot[var], taf_cfs)
 
-    # If we found any temperature variables, we will only use those
+    # If we found any temperature or x2 variables, we will only use those
     if b_temp_flag:
         var_list_final = ls_temp_vars
-        unit_choice = 'Degrees'
-
+        unit_choice = 'Degrees Fahrenheit'
+    elif b_x2_flag:
+        var_list_final = ls_x2_pos
+        unit_choice = 'KM'
     if len(var_list_final) == 0:
         return pn.pane.Markdown('## Select variables above to display plot.')
 
@@ -147,13 +157,17 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
             'WYT_AMERD983_CVP_': {1: 'Non-Critical', 2: 'Critically Dry'},
             'SHASTABIN_': {1: '1a', 2: '1b', 3: '2a', 4: '2b', 5: '3a', 6: '3b'}
         }
-        if s_no_unit_var not in c_no_unit_names.keys():
+        if '/' in s_no_unit_var:
+            s_var = s_no_unit_var.split('/')[1]
+        else:
+            s_var = s_no_unit_var
+        if s_var not in c_no_unit_names.keys():
             yformatter = None
         else:
             yformatter = CustomJSTickFormatter(code="""
                                             var labels = %s;
                                             return labels[tick] || tick;
-                                         """ % c_no_unit_names[s_no_unit_var])
+                                         """ % c_no_unit_names[s_var])
         # if we only have the no unit variable selected
         if len(var_list_final) == 1:
             return pn.Column(
@@ -268,8 +282,8 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
     Panel Object
         Plot and table of data as a column
     """
-    df_all_plot = df_all.copy(deep=True)
-    df_all_plot.reset_index(inplace=True, drop=True)
+    df_all_plot = df_all.groupby('Scenario').resample(rule='ME', on='Date').mean()
+    df_all_plot.reset_index(inplace=True, drop=False)
     durations = [date.day for date in df_all_plot['Date']]
 
     b_diffs_flag = False
@@ -299,17 +313,22 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 
     b_temp_flag = False
     ls_temp_vars = []
+    b_x2_flag = False
+    ls_x2_pos = []
 
     # create copy of var list since lists are mutable
     var_list_final = var_list[:]
     # Unit conversion
     for var in var_list:
         try:
-            original_unit = c_default_units[var].strip()
+            original_unit = c_default_units[var].strip().upper()
         except:
             original_unit = 'NONE'
+        if 'X2_PRV' in var:
+            b_x2_flag = True
+            ls_x2_pos.append(var)
         # if we have any temperature vars, keep them
-        if original_unit == 'TEMP':
+        elif original_unit == 'DEGF':
             b_temp_flag = True
             ls_temp_vars.append(var)
         elif original_unit not in ['CFS', 'TAF']:
@@ -324,10 +343,14 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
             df_all_plot[var] = \
                 np.multiply(df_all_plot[var], taf_cfs)
     agg_func = 'sum' if unit_choice == 'TAF' else 'mean'
-    # If we found any temperature variables, we will only use those
+    # If we found any temperature or x2 variables, we will only use those
     if b_temp_flag:
         var_list_final = ls_temp_vars
-        unit_choice = 'Degrees'
+        unit_choice = 'Degrees Fahrenheit'
+        agg_func = 'mean'
+    elif b_x2_flag:
+        var_list_final = ls_x2_pos
+        unit_choice = 'KM'
         agg_func = 'mean'
     if len(var_list_final) == 0:
         return pn.pane.Markdown('## Select variables above to display plot.')
@@ -337,7 +360,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
     var_list_final = [c_field_list[var] for var in var_list_final]
 
     # if we are sorting by WYT we need to do some work before switching to wide frame
-    if (len(str(period_choice)) >= 3) and (period_choice[:3] == 'WYT') or period_choice == 'SHASTABIN_':
+    if 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
         # sort for the years we want
         # see if any years are selected
         if not li_wyt_selected:
@@ -375,7 +398,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
     keeplist = []
 
     # if grouping by wyt we need to include that variable
-    if (len(str(period_choice)) >= 3) and (period_choice[:3] == 'WYT') or period_choice == 'SHASTABIN_':
+    if 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
         for scenario in scenario_list:
             df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][[s_wyt_col]]
             df_temp.reset_index(inplace=True, drop=True)
@@ -432,7 +455,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
 
     # if water year type is selected as period
-    elif (len(str(period_choice)) >= 3) and (period_choice[:3] == 'WYT') or period_choice == 'SHASTABIN_':
+    elif 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
         # filter for selected WYTs
         # get rif of anywhere all wyt columns are empty
         df_wide = df_wide.dropna(subset=keeplist[:len(scenario_list)], how='all')
@@ -501,10 +524,14 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
             'SHASTABIN_': {1: '1a', 2: '1b', 3: '2a', 4: '2b', 5: '3a', 6: '3b'}
         }
         try:
-            if period_choice[:3] == 'WYT':
-                s_all_sel_wyt = 'All Water Year Types' if len(li_wyt_selected) == len(list(c_no_unit_names[period_choice].keys())) else ', '.join([c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
+            if '/' in period_choice:
+                period_choice_stripped = period_choice.split('/')[1]
             else:
-                s_all_sel_wyt = ', '.join([c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
+                period_choice_stripped = period_choice
+            if period_choice_stripped[:3] == 'WYT':
+                s_all_sel_wyt = 'All Water Year Types' if len(li_wyt_selected) == len(list(c_no_unit_names[period_choice_stripped].keys())) else ', '.join([c_no_unit_names[period_choice_stripped][wyt] for wyt in li_wyt_selected])
+            else:
+                s_all_sel_wyt = ', '.join([c_no_unit_names[period_choice_stripped][wyt] for wyt in li_wyt_selected])
         except:
             s_all_sel_wyt = ', '.join([str(wyt) for wyt in li_wyt_selected])
 
@@ -583,7 +610,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         df_wide = df_wide.drop('Date', axis=1)
 
         # if we cross a cal year change, group by WY
-        if period_choice in ['11-3', '10-1', '12-2']:
+        if period_choice in ['11-3', '10-1', '12-2', '10-4']:
             df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
         else:
             df_grouped = df_wide.groupby(by=['JanDecYear']).agg(agg_func)
@@ -612,7 +639,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                          c_default_units, period_choice, s_comparison, c_field_list,
                          li_wyt_selected, b_wyt_period_year, li_wyt_period_months,
-                         b_show_year):
+                         b_show_year, s_flag):
     """
     Creates exceedance plots
 
@@ -642,14 +669,15 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         Months selected for WYT time period
     b_show_year: bool
         Whether to show the year in the table
-
+    s_flag: str
+        Flag for version of visualizer
     Returns
     -------
     Panel Object
             Plot and table of data as a column
     """
-    df_all_plot = df_all.copy(deep=True)
-    df_all_plot.reset_index(inplace=True, drop=True)
+    df_all_plot = df_all.groupby('Scenario').resample(rule='ME', on='Date').mean()
+    df_all_plot.reset_index(inplace=True, drop=False)
     durations = [date.day for date in df_all_plot['Date']]
 
     b_diffs_flag = False
@@ -682,15 +710,20 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 
     b_temp_flag = False
     ls_temp_vars = []
+    b_x2_flag = False
+    ls_x2_pos = []
 
     # Unit conversion
     for var in var_list:
         try:
-            original_unit = c_default_units[var].strip()
+            original_unit = c_default_units[var].strip().upper()
         except:
             original_unit = None
+        if 'X2_PRV' in var:
+            b_x2_flag = True
+            ls_x2_pos.append(var)
         # if we have any temperature vars, keep them
-        if original_unit == 'TEMP':
+        elif original_unit == 'DEGF':
             b_temp_flag = True
             ls_temp_vars.append(var)
         elif original_unit not in ['CFS', 'TAF']:
@@ -708,7 +741,11 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
     # If we found any temperature variables, we will only use those
     if b_temp_flag:
         var_list_final = ls_temp_vars
-        unit_choice = 'Degrees'
+        unit_choice = 'Degrees Fahrenheit'
+        agg_func = 'mean'
+    elif b_x2_flag:
+        var_list_final = ls_x2_pos
+        unit_choice = 'KM'
         agg_func = 'mean'
     if len(var_list_final) == 0:
         return pn.pane.Markdown('## Select variables above to display plot.')
@@ -718,7 +755,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
     var_list_final = [c_field_list[var] for var in var_list_final]
 
     # if we are sorting by WYT we need to do some work before switching to wide frame
-    if (len(str(period_choice)) >= 3) and (period_choice[:3] == 'WYT') or period_choice == 'SHASTABIN_':
+    if 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
         # sort for the years we want
         # see if any years are selected
         if not li_wyt_selected:
@@ -758,7 +795,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
     keeplist = []
 
     # if grouping by wyt we need to include that variable
-    if (len(str(period_choice)) >= 3) and (period_choice[:3] == 'WYT') or period_choice == 'SHASTABIN_':
+    if 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
         for scenario in scenario_list:
             df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][[s_wyt_col]]
             df_temp.reset_index(inplace=True, drop=True)
@@ -821,9 +858,9 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=True,
+                flip_xaxis=(s_flag != 'temperature'),
                 xformatter='%f%%',
-                grid=True
+                grid=True,
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
 
         else:
@@ -833,13 +870,13 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=True,
+                flip_xaxis=(s_flag != 'temperature'),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
 
     # if water year type is selected as period
-    elif (len(str(period_choice)) >= 3) and (period_choice[:3] == 'WYT') or period_choice == 'SHASTABIN_':
+    elif 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
         # filter for selected WYTs
         # get rif of anywhere all wyt columns are empty
         df_wide = df_wide.dropna(subset=keeplist[:len(scenario_list)], how='all')
@@ -927,11 +964,15 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
             'SHASTABIN_': {1: '1a', 2: '1b', 3: '2a', 4: '2b', 5: '3a', 6: '3b'}
         }
         try:
-            if period_choice[:3] == 'WYT':
-                s_all_sel_wyt = 'All Water Year Types' if len(li_wyt_selected) == len(list(c_no_unit_names[period_choice].keys())) else ', '.join(
-                    [c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
+            if '/' in period_choice:
+                period_choice_stripped = period_choice.split('/')[1]
             else:
-                s_all_sel_wyt = ', '.join([c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
+                period_choice_stripped = period_choice
+            if period_choice_stripped[:3] == 'WYT':
+                s_all_sel_wyt = 'All Water Year Types' if len(li_wyt_selected) == len(list(c_no_unit_names[period_choice_stripped].keys())) else ', '.join(
+                    [c_no_unit_names[period_choice_stripped][wyt] for wyt in li_wyt_selected])
+            else:
+                s_all_sel_wyt = ', '.join([c_no_unit_names[period_choice_stripped][wyt] for wyt in li_wyt_selected])
         except:
             s_all_sel_wyt = ', '.join([str(wyt) for wyt in li_wyt_selected])
 
@@ -951,7 +992,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=True,
+                flip_xaxis=(s_flag != 'temperature'),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -963,7 +1004,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=True,
+                flip_xaxis=(s_flag != 'temperature'),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -1008,7 +1049,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=c_num_to_month[period_choice] + ' ' + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=True,
+                flip_xaxis=(s_flag != 'temperature'),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -1020,7 +1061,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=c_num_to_month[period_choice] + ' ' + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=True,
+                flip_xaxis=(s_flag != 'temperature'),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -1042,7 +1083,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         df_wide = df_wide.drop('Date', axis=1)
 
         # if we cross a cal year change, group by WY
-        if period_choice in ['11-3', '10-1', '12-2']:
+        if period_choice in ['11-3', '10-1', '12-2', '10-4']:
             df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
         else:
             df_grouped = df_wide.groupby(by=['JanDecYear']).agg(agg_func)
@@ -1072,7 +1113,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=True,
+                flip_xaxis=(s_flag != 'temperature'),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -1084,7 +1125,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=True,
+                flip_xaxis=(s_flag != 'temperature'),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -1127,9 +1168,9 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     Panel Object
             Plot and table of data as a column
     """
-    df_all_plot = df_all.copy(deep=True)
-    df_all_plot.reset_index(inplace=True, drop=True)
-    durations = [date.day for date in df_all['Date']]
+    df_all_plot = df_all.groupby('Scenario').resample(rule='ME', on='Date').mean()
+    df_all_plot.reset_index(inplace=True, drop=False)
+    durations = [date.day for date in df_all_plot['Date']]
 
     b_diffs_flag = False
 
@@ -1161,15 +1202,20 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
 
     b_temp_flag = False
     ls_temp_vars = []
+    b_x2_flag = False
+    ls_x2_pos = []
 
     # Unit conversion
     for var in var_list:
         try:
-            original_unit = c_default_units[var].strip()
+            original_unit = c_default_units[var].strip().upper()
         except:
             original_unit = None
+        if 'X2_PRV' in var:
+            b_x2_flag = True
+            ls_x2_pos.append(var)
         # if we have any temperature vars, keep them
-        if original_unit == 'TEMP':
+        elif original_unit == 'DEGF':
             b_temp_flag = True
             ls_temp_vars.append(var)
         elif original_unit not in ['CFS', 'TAF']:
@@ -1187,7 +1233,11 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     # If we found any temperature variables, we will only use those
     if b_temp_flag:
         var_list_final = ls_temp_vars
-        unit_choice = 'Degrees'
+        unit_choice = 'Degrees Fahrenheit'
+        agg_func = 'mean'
+    elif b_x2_flag:
+        var_list_final = ls_x2_pos
+        unit_choice = 'KM'
         agg_func = 'mean'
     if len(var_list_final) == 0:
         return pn.pane.Markdown('## Select variables above to display plot.')
@@ -1197,7 +1247,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     var_list_final = [c_field_list[var] for var in var_list_final]
 
     # if we are sorting by WYT we need to do some work before switching to wide frame
-    if (len(str(period_choice)) >= 3) and (period_choice[:3] == 'WYT') or period_choice == 'SHASTABIN_':
+    if 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
         # sort for the years we want
         # see if any years are selected
         if not li_wyt_selected:
@@ -1234,7 +1284,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     keeplist = []
 
     # if grouping by wyt we need to include that variable
-    if (len(str(period_choice)) >= 3) and (period_choice[:3] == 'WYT') or period_choice == 'SHASTABIN_':
+    if 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
         for scenario in scenario_list:
             df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][[s_wyt_col]]
             df_temp.reset_index(inplace=True, drop=True)
@@ -1297,7 +1347,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
                 df_stats = df_exceed.loc[i_exceedance_prob].to_frame()
 
     # if water year type is selected as period
-    elif (len(str(period_choice)) >= 3) and (period_choice[:3] == 'WYT') or period_choice == 'SHASTABIN_':
+    elif 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
         # filter for selected WYTs
         # get rif of anywhere all wyt columns are empty
         df_wide = df_wide.dropna(subset=keeplist[:len(scenario_list)], how='all')
@@ -1439,24 +1489,28 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
             'SHASTABIN_': {1: '1a', 2: '1b', 3: '2a', 4: '2b', 5: '3a', 6: '3b'}
         }
         try:
-            if period_choice[:3] == 'WYT':
-                s_all_sel_wyt = 'All Water Year Types' if len(li_wyt_selected) == len(list(c_no_unit_names[period_choice].keys())) else ', '.join(
-                    [c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
+            if '/' in period_choice:
+                period_choice_stripped = period_choice.split('/')[1]
             else:
-                s_all_sel_wyt = ', '.join([c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
+                period_choice_stripped = period_choice
+            if period_choice_stripped[:3] == 'WYT':
+                s_all_sel_wyt = 'All Water Year Types' if len(li_wyt_selected) == len(list(c_no_unit_names[period_choice_stripped].keys())) else ', '.join(
+                    [c_no_unit_names[period_choice_stripped][wyt] for wyt in li_wyt_selected])
+            else:
+                s_all_sel_wyt = ', '.join([c_no_unit_names[period_choice_stripped][wyt] for wyt in li_wyt_selected])
         except:
-            c_no_unit_names[period_choice] = {wyt: wyt for wyt in li_wyt_selected}
-            s_all_sel_wyt = 'All Water Year Types' if len(li_wyt_selected) == len(list(c_no_unit_names[period_choice].keys())) else ', '.join(
+            c_no_unit_names[period_choice_stripped] = {wyt: wyt for wyt in li_wyt_selected}
+            s_all_sel_wyt = 'All Water Year Types' if len(li_wyt_selected) == len(list(c_no_unit_names[period_choice_stripped].keys())) else ', '.join(
                 [c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
 
         try:
             for wyt in list(c_no_unit_names.keys()):
                 c_no_unit_names[wyt][99] = s_all_sel_wyt
-            df_final.rename(index=c_no_unit_names[period_choice], inplace=True)
+            df_final.rename(index=c_no_unit_names[period_choice_stripped], inplace=True)
         except:
             for wyt in list(c_no_unit_names.keys()):
                 c_no_unit_names[wyt][99] = s_all_sel_wyt
-            df_final.rename(index=c_no_unit_names[period_choice], inplace=True)
+            df_final.rename(index=c_no_unit_names[period_choice_stripped], inplace=True)
 
         s_title += s_all_sel_wyt + ' Years \n'
         if b_wyt_period_year:
@@ -1544,7 +1598,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
         df_wide = df_wide.drop('Date', axis=1)
 
         # if we cross a cal year change, group by WY
-        if period_choice in ['11-3', '10-1', '12-2']:
+        if period_choice in ['11-3', '10-1', '12-2', '10-4']:
             df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
         else:
             df_grouped = df_wide.groupby(by=['JanDecYear']).agg(agg_func)
@@ -1669,8 +1723,8 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
     Panel Object
             Plot and table of data as a column
     """
-    df_all_plot = df_all.copy(deep=True)
-    df_all_plot.reset_index(inplace=True, drop=True)
+    df_all_plot = df_all.groupby('Scenario').resample(rule='ME', on='Date').mean()
+    df_all_plot.reset_index(inplace=True, drop=False)
     durations = [date.day for date in df_all_plot['Date']]
 
     b_diffs_flag = False
@@ -1703,16 +1757,21 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
 
     b_temp_flag = False
     ls_temp_vars = []
+    b_x2_flag = False
+    ls_x2_pos = []
 
     # Unit conversion
     for var in var_list:
         try:
-            original_unit = c_default_units[var].strip()
+            original_unit = c_default_units[var].strip().upper()
         except:
             original_unit = None
 
+        if 'X2_PRV' in var:
+            b_x2_flag = True
+            ls_x2_pos.append(var)
         # if we have any temperature vars, keep them
-        if original_unit == 'TEMP':
+        elif original_unit == 'DEGF':
             b_temp_flag = True
             ls_temp_vars.append(var)
         elif original_unit not in ['CFS', 'TAF']:
@@ -1729,7 +1788,11 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
     # If we found any temperature variables, we will only use those
     if b_temp_flag:
         var_list_final = ls_temp_vars
-        unit_choice = 'Degrees'
+        unit_choice = 'Degrees Fahrenheit'
+    elif b_x2_flag:
+        var_list_final = ls_x2_pos
+        unit_choice = 'KM'
+        agg_func = 'mean'
     if len(var_list_final) == 0:
         return pn.pane.Markdown('## Select variables above to display plot.')
 
@@ -1738,7 +1801,7 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
     var_list_final = [c_field_list[var] for var in var_list_final]
 
     # if we are sorting by WYT we need to do some work before switching to wide frame
-    if (len(str(period_choice)) >= 3) and (period_choice[:3] == 'WYT') or period_choice == 'SHASTABIN_':
+    if 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
         # sort for the years we want
         # see if any years are selected
         if not li_wyt_selected:
@@ -1778,7 +1841,7 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
     s_title = ''
 
     # if grouping by wyt we need to include that variable
-    if (len(str(period_choice)) >= 3) and (period_choice[:3] == 'WYT') or period_choice == 'SHASTABIN_':
+    if 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
         # to hold the wyt columns so we can filter with them but they dont end up in keeplist
         ls_wyt_cols = []
         for scenario in scenario_list:
@@ -1802,15 +1865,19 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
             'SHASTABIN_': {1: '1a', 2: '1b', 3: '2a', 4: '2b', 5: '3a', 6: '3b'}
         }
         try:
-            if period_choice[:3] == 'WYT':
-                s_all_sel_wyt = 'All' if len(li_wyt_selected) == len(list(c_no_unit_names[period_choice].keys())) else ', '.join(
-                    [c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
+            if '/' in period_choice:
+                period_choice_stripped = period_choice.split('/')[1]
             else:
-                s_all_sel_wyt = ', '.join([c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
+                period_choice_stripped = period_choice
+            if period_choice_stripped[:3] == 'WYT':
+                s_all_sel_wyt = 'All' if len(li_wyt_selected) == len(list(c_no_unit_names[period_choice_stripped].keys())) else ', '.join(
+                    [c_no_unit_names[period_choice_stripped][wyt] for wyt in li_wyt_selected])
+            else:
+                s_all_sel_wyt = ', '.join([c_no_unit_names[period_choice_stripped][wyt] for wyt in li_wyt_selected])
         except:
-            c_no_unit_names[period_choice] = {wyt: wyt for wyt in li_wyt_selected}
-            s_all_sel_wyt = 'All' if len(li_wyt_selected) == len(list(c_no_unit_names[period_choice].keys())) else ', '.join(
-                [c_no_unit_names[period_choice][wyt] for wyt in li_wyt_selected])
+            c_no_unit_names[period_choice_stripped] = {wyt: wyt for wyt in li_wyt_selected}
+            s_all_sel_wyt = 'All' if len(li_wyt_selected) == len(list(c_no_unit_names[period_choice_stripped].keys())) else ', '.join(
+                [c_no_unit_names[period_choice_stripped][wyt] for wyt in li_wyt_selected])
         s_title = '## ' + s_wyt_col + ': ' + s_all_sel_wyt + ' Years'
 
     for scenario in scenario_list:
@@ -1889,3 +1956,106 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
         )).opts(legend_position='bottom', legend_cols=1),
             sizing_mode='stretch_width', linked_axes=False),
             pn.pane.DataFrame(df_wide, index=False, max_height=500))
+
+def plot_single_year(scenario_list, df_all, c_field_list, s_reservoir, i_year):
+    # check if no scenarios are selected
+    if len(scenario_list) == 0:
+        return pn.pane.Markdown("## No data to display")
+
+    # Loop through each scenario and create a plot
+
+    # trim to time period for operations
+    o_operations_dates = pd.date_range(start=datetime.datetime(year=i_year, month=1, day=31), end=datetime.datetime(year=i_year, month=12, day=31), freq='ME').to_pydatetime()
+    df_operations = df_all[df_all['Date'].isin(o_operations_dates)].reset_index(drop=True)
+
+    # trim to dates for cold water
+    o_first_of_months = pd.date_range(start=datetime.datetime(year=i_year, month=1, day=1), end=datetime.datetime(year=i_year, month=12, day=1), freq='MS')
+    o_end_of_months = pd.date_range(start=datetime.datetime(year=i_year, month=1, day=31), end=datetime.datetime(year=i_year, month=12, day=31), freq='ME')
+    o_cold_water_dates = o_end_of_months.append(o_first_of_months + datetime.timedelta(days=9))
+    o_cold_water_dates = o_cold_water_dates.append(o_first_of_months + datetime.timedelta(days=19))
+    o_cold_water_dates = np.sort(o_cold_water_dates.to_pydatetime())
+    df_cold_water = df_all[df_all['Date'].isin(o_cold_water_dates)].reset_index(drop=True)
+
+    # Trim to year for temperature
+    o_temperature_dates = pd.date_range(start=datetime.datetime(year=i_year, month=1, day=1), end=datetime.datetime(year=i_year, month=12, day=31), freq='d').to_pydatetime()
+    df_temperature = df_all[df_all['Date'].isin(o_temperature_dates)].reset_index(drop=True)
+    df_temperature = df_temperature[df_temperature['Scenario'].isin(scenario_list)]
+
+    if s_reservoir == 'Shasta':
+        # variables we need for shasta
+        ls_cfs_vars = ['CALSIM/C_KSWCK/CHANNEL', 'CALSIM/C_SHSTA/CHANNEL', 'CALSIM/I_SHSTA/INFLOW', 'ShaSpill']
+        ls_taf_vars = ['CALSIM/S_SHSTA/STORAGE']
+        ls_cold_water_vars = ['<45 (Shasta)', '45-50 (Shasta)', '50-55 (Shasta)', '55-60 (Shasta)', '60-65 (Shasta)', '65-70 (Shasta)', '70+ (Shasta)']
+        ls_temp_fields = ['SACRAMENTO/HWY44/TEMP_F', 'SACRAMENTO/BLW CLEAR CREEK/TEMP_F', 'SACRAMENTO/AIRPORT/TEMP_F']
+
+        # Convert I_SHSTA to CFS from TAF
+        df_operations['CALSIM/I_SHSTA/INFLOW'] = df_operations['CALSIM/I_SHSTA/INFLOW'] / (df_operations['Date'].dt.day * (3600 * 24 / 43560 / 1000))
+    else:
+        # Folsom
+        # variables we need for folsom
+        ls_cfs_vars = ['CALSIM/C_NTOMA/CHANNEL', 'CALSIM/C_FOLSM/CHANNEL', 'CALSIM/I_FOLSM/INFLOW', 'FolSpill']
+        ls_taf_vars = ['CALSIM/S_FOLSM/STORAGE']
+        ls_cold_water_vars = ['<45 (Folsom)', '45-50 (Folsom)', '50-55 (Folsom)', '55-60 (Folsom)', '60-65 (Folsom)', '65-70 (Folsom)', '70+ (Folsom)']
+        ls_temp_fields = ['AMERICAN/BLW NIMBUS(HAZEL AVE)/TEMP_F', 'AMERICAN/WILLIAM POND PARK/TEMP_F']
+
+        # Convert I_SHSTA to CFS from TAF
+        df_operations['CALSIM/I_FOLSM/INFLOW'] = df_operations['CALSIM/I_FOLSM/INFLOW'] / (df_operations['Date'].dt.day * (3600 * 24 / 43560 / 1000))
+
+    # switch from variable name to description
+    df_operations.rename(c_field_list, axis='columns', inplace=True)
+    ls_cfs_vars = [c_field_list[var] for var in ls_cfs_vars]
+    ls_taf_vars = [c_field_list[var] for var in ls_taf_vars]
+
+    df_temperature.rename(c_field_list, axis='columns', inplace=True)
+    ls_temp_fields = [c_field_list[var] for var in ls_temp_fields]
+
+    # these will hold the plots and dataframes
+    o_final_plots = pn.FlexBox()
+    o_final_temp_plots = pn.FlexBox()
+    o_final_data = pn.FlexBox()
+
+    for scenario in scenario_list:
+        # create operations plot
+        df_plot_ops = df_operations.loc[df_operations['Scenario'] == scenario][['Date'] + ls_taf_vars + ls_cfs_vars]
+        df_plot_ops.reset_index(inplace=True, drop=True)
+        df_plot_ops = df_plot_ops.round()
+
+        f_cfs_min = df_plot_ops[ls_cfs_vars].min().min()
+        f_cfs_max = df_plot_ops[ls_cfs_vars].max().max() + 500
+        o_plot_opps = hv.Bars(
+            df_plot_ops, 'Date', (ls_taf_vars[0], 'TAF'), label=ls_taf_vars[0]
+        ).opts(yaxis='left', color='#007396', line_color=None) * hv.Labels(
+            df_plot_ops, ['Date', ls_taf_vars[0]], ls_taf_vars[0]
+        ).opts(text_baseline='bottom', text_color='black', text_font_size='9pt')
+
+        # Plot all the CFS variables
+        o_plot_opps = o_plot_opps * hv.Curve(df_plot_ops, 'Date', (ls_cfs_vars[0], 'CFS'), label=ls_cfs_vars[0]).opts(yaxis='right', tools=['hover'], ylim=(f_cfs_min, f_cfs_max), color='#9A3324', line_dash='dashed')
+        o_plot_opps = o_plot_opps * hv.Curve(df_plot_ops, 'Date', (ls_cfs_vars[1], 'CFS'), label=ls_cfs_vars[1]).opts(tools=['hover'], ylim=(f_cfs_min, f_cfs_max), yaxis=None, color='#003E51')
+        o_plot_opps = o_plot_opps * hv.Curve(df_plot_ops, 'Date', (ls_cfs_vars[2], 'CFS'), label=ls_cfs_vars[2]).opts(tools=['hover'], ylim=(f_cfs_min, f_cfs_max), yaxis=None, color='#C69214')
+        o_plot_opps = o_plot_opps * hv.Curve(df_plot_ops, 'Date', (ls_cfs_vars[3], 'CFS'), label=ls_cfs_vars[3]).opts(tools=['hover'], ylim=(f_cfs_min, f_cfs_max), yaxis=None, color='#FF671F')
+
+        o_plot_opps = o_plot_opps.opts(title=scenario + ' Operations', multi_y=True, min_width=1200, min_height=600, tools=['hover'], legend_position='bottom', legend_cols=3, show_grid=True, xticks=o_operations_dates)
+
+        # create the cold water plot
+        df_plot_cold_water = df_cold_water.loc[df_cold_water['Scenario'] == scenario][['Date'] + ls_cold_water_vars]
+        df_plot_cold_water.reset_index(inplace=True, drop=True)
+        df_plot_cold_water = df_plot_cold_water.round()
+
+        o_plot_cold_water = df_plot_cold_water.hvplot.bar(x='Date', line_color=None, stacked=True, color=['#4C12A1', '#003E51', '#007396', '#215732', '#C69214', '#FF671F', '#9A3324'], grid=True).opts(
+            title=scenario + ' Cold Water Profile', ylabel=s_reservoir+' Storage (TAF)', min_width=1200, min_height=600, legend_position='bottom', yformatter='%.0f', xticks=o_cold_water_dates[::2])
+
+        o_final_plots.append(hv.Layout(o_plot_opps + o_plot_cold_water).opts(shared_axes=False).cols(1))
+        o_final_data.append(pn.Column("## " + scenario, pn.pane.DataFrame(df_plot_ops, index=False, max_height=500),
+                                      pn.pane.DataFrame(df_plot_cold_water, index=False, max_height=500),
+                                      pn.pane.DataFrame(df_temperature[df_temperature['Scenario'] == scenario][['Date']+ls_temp_fields], index=False, max_height=500)))
+
+    for temp_field in ls_temp_fields:
+        df_plot_temp = df_temperature[['Date', 'Scenario', temp_field]]
+        o_temp_plot = df_plot_temp.hvplot(x='Date',
+                                          by='Scenario',
+                                          ylabel='Degrees Fahrenheit',
+                                          grid=True,
+                                          title=temp_field).opts(min_width=1200, min_height=600, legend_position='bottom', shared_axes=False)
+        o_final_temp_plots.append(o_temp_plot)
+
+    return pn.Column(o_final_plots, o_final_temp_plots,o_final_data)

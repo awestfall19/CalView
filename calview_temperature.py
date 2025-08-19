@@ -8,6 +8,7 @@ from functools import partial
 # Set some default behavior
 pn.extension(sizing_mode='stretch_width')
 pn.extension(notifications=True)
+
 # change default colors to first go through Reclamation colors and then original default colors for line plots
 hv.opts.defaults(hv.opts.Curve(color=hv.Cycle(['#003E51', '#007396', '#C69214', '#FF671F', '#215732', '#4C12A1', '#9A3324'] + hv.Cycle.default_cycles["default_colors"])))
 hv.opts.defaults(hv.opts.Bars(color=hv.Cycle(['#003E51', '#007396', '#C69214', '#FF671F', '#215732', '#4C12A1', '#9A3324'] + hv.Cycle.default_cycles["default_colors"])))
@@ -16,13 +17,13 @@ hv.opts.defaults(hv.opts.Scatter(color=hv.Cycle(['#003E51', '#007396', '#C69214'
 # Visualizer formatting code
 
 # Flag for temperature version
-s_flag = 'calsim'
+s_flag = 'temperature'
 
 # path for the compiled executable to find logo
 s_logo_path = path.abspath(path.join(path.dirname(__file__), 'inputs', 'usbr_logo.jpg'))
 
 template = pn.template.BootstrapTemplate(
-    title="DSS Results Viewer for CalSim 3",
+    title="CalView Temperature",
     logo=s_logo_path,
     favicon=s_logo_path,
     header_background='white',
@@ -60,10 +61,10 @@ file_picker_title_tooltip = pn.widgets.TooltipIcon(value='Once a set of DSS file
 #Create radio button widget to select running with old or new scenario
 old_new_sel = pn.widgets.RadioButtonGroup(
     #name='',
-    value="New CalSim outputs",
+    value="New temperature outputs",
     button_style='outline',
     button_type='primary',
-    options=["New CalSim outputs", "Previously generated visuals"],
+    options=["New temperature outputs", "Previously generated visuals"],
     max_width=1000
 )
 
@@ -79,7 +80,7 @@ file_picker_col_tracker.append("dss_file")
 
 #Watch the old_new_sel widget and call remove_widget function to update dss_file if a change event occurs
 choice_watcher = old_new_sel.param.watch(partial(update_dss_file_widget, file_picker_column=file_picker_column, file_picker_col_tracker=file_picker_col_tracker), ['value'], onlychanged=False)
-old_new_sel.value = "New CalSim outputs"
+old_new_sel.value = "New temperature outputs"
 # name of the scenario that will be compared to, Baseline as a default
 
 #Add Done Selecting Files button
@@ -95,6 +96,26 @@ template.main.append(file_picker_display)
 #When done selecting file button is clicked, add text boxes for user to name each file's run
 done_selecting.on_click(partial(add_run_names_widget, file_picker_col_tracker=file_picker_col_tracker, run_name_col_tracker=run_name_col_tracker, field_col_tracker=field_col_tracker,
                                 file_picker_display=file_picker_display, header=header, tabs_row=tabs_row, s_flag=s_flag))
+
+# Add a float panel with instructions
+file_instructions = pn.pane.Markdown("## Required file structure: ", disable_anchors=True)
+file_structure = pn.pane.Str("""NAA/\n├─── CS3_NAA_SV.dss\n├─── CS3_NAA_DV_dp.dss\n\
+├─── american/\n│    ├─── CALSIMII_HEC5Q.dss\n│    └─── AR_WQ_Report.dss\n\
+└─── sacramento/\n     ├─── CALSIMII_HEC5Q.dss\n     └─── SR_WQ_Report.dss\n\
+Alt2v1/\n├─── CS3_Alt2v1_SV.dss\n├─── CS3_Alt2v1_DV_dp.dss\n\
+├─── american/\n│    ├─── CALSIMII_HEC5Q.dss\n│    └─── AR_WQ_Report.dss\n\
+└─── sacramento/\n     ├─── CALSIMII_HEC5Q.dss\n     └─── SR_WQ_Report.dss""")
+file_instructions_2 = pn.pane.Markdown("""## Select the base folders. 
+## For this example, select the *NAA* and *Alt2v1* folders.
+
+CalSim DSS files can be named anything as long as one has 'SV' and one has 'DV' in the name.
+
+There must be folders named *american* and *sacramento* with the exact files shown.""", disable_anchors=True)
+
+o_floatpanel = pn.layout.FloatPanel(pn.Column(file_instructions, file_structure, file_instructions_2), name='New Temperature File Selection Instructions', margin=20, theme='primary')
+
+file_picker_column.append(o_floatpanel)
+file_picker_col_tracker.append('floatplane')
 
 # when this file is ran, the site will automatically launch
 pn.serve(template, show=True)

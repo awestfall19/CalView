@@ -18,6 +18,10 @@ In the environment, run the line:
 
 In the environment, run the line:
 
-`pyinstaller cs_visualizer.spec`
+`pyinstaller build_calview_calsim.spec`
+
+or
+
+`pyinstaller build_calview_temperature.spec`
 
 The compiled executable will be created in a folder called *dist*. Double-click on the executable to launch it.

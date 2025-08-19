@@ -1,3 +1,5 @@
+import warnings
+
 import panel as pn
 import os
 import pandas as pd
@@ -30,7 +32,7 @@ def create_plot_title(s_title, s_comparison='', s_period='', s_stat=''):
                              9: "September", 10: "October", 11: "November", 12: "December",
                              '11-3': 'November-March', '8-10': 'August-October', '10-1': 'October-January',
                              '12-2': 'December-February', '3-5': 'March-May', '3-6': 'March-June',
-                             '6-9': 'June-September', '9-11': 'September-November'
+                             '6-9': 'June-September', '9-11': 'September-November', '10-4': 'October-April'
                              }
     s_final_title = "# "
     if s_stat:
@@ -64,7 +66,7 @@ def update_wyt_names(target, event):
         none
     """
     if event.new != event.old:
-        if (len(str(event.new)) >= 3 and event.new[:3] == 'WYT') or event.new == 'SHASTABIN_':
+        if 'WYT' in event.new or 'SHASTABIN_' in event.new:
 
             # Dictionary with all the names for each number code for each WYT field
             c_wyt_names = {
@@ -79,8 +81,12 @@ def update_wyt_names(target, event):
                 'Default': [1, 2, 3, 4, 5]
             }
             try:
-                target.options = c_wyt_names[event.new]
-                target.value = list(c_wyt_names[event.new].values())
+                if '/' in event.new:
+                    wyt = event.new.split('/')[1]
+                else:
+                    wyt = event.new
+                target.options = c_wyt_names[wyt]
+                target.value = list(c_wyt_names[wyt].values())
             except:
                 target.options = c_wyt_names['Default']
                 target.value = c_wyt_names['Default']
@@ -132,6 +138,7 @@ def update_dss_file_widget(event, file_picker_column, file_picker_col_tracker):
         file_picker_col_tracker.remove("instructions")
 
         # Add back dss_file widget with updated file pattern
+        # new calsim
         if event.new == "New CalSim outputs":
             o_instructions = pn.pane.Markdown("### Select the DSS files to be read in.")
             o_instructions_tooltip = pn.widgets.TooltipIcon(value="Move all DSS files from 'File Browser' section to 'Selected files' section then click 'Continue'")
@@ -142,6 +149,17 @@ def update_dss_file_widget(event, file_picker_column, file_picker_col_tracker):
                 max_width=1000,
                 root_directory=os.path.abspath(os.sep)
             )
+        # new temperature
+        elif event.new == "New temperature outputs":
+            o_instructions = pn.pane.Markdown("### Select the folders to be read in.")
+            o_instructions_tooltip = pn.widgets.TooltipIcon(value="Move all folders from 'File Browser' section to 'Selected files' section then click 'Continue'")
+            dss_file = pn.widgets.FileSelector(
+                name='',
+                only_files=False,
+                max_width=1000,
+                root_directory=os.path.abspath(os.sep)
+            )
+        # Pickle files
         else:
             o_instructions = pn.pane.Markdown('### <span style="color:red">Select the pickle files previously created (diffs.pkl, units.pkl, values.pkl, and fields.pkl)</span>')
             o_instructions_tooltip = pn.widgets.TooltipIcon(value="Move the four pkl files from 'File Browser' section to 'Selected files' section then click 'Continue'")
@@ -180,10 +198,8 @@ def hide_show_wyt(event, header):
     # make sure that the header has been populated
     if len(header) > 2:
         # check if a WYT is selected
-        if (len(str(event.new)) >= 3) and (event.new[:3] == 'WYT'):
+        if 'WYT' in event.new or 'SHASTABIN_' in event.new:
             # turn on the visibility
-            header[2][1].visible = True
-        elif event.new == 'SHASTABIN_':
             header[2][1].visible = True
         else:
             # turn it off
@@ -256,11 +272,11 @@ def create_widgets(scenario_names, c_field_list):
                 'Month': {"January": 1, "February": 2, "March": 3, "April": 4,
                           "May": 5, "June": 6, "July": 7, "August": 8,
                           "September": 9, "October": 10, "November": 11, "December": 12},
-                "Partial Year": {'November-March': '11-3', 'August-October': '8-10', 'October-January': '10-1',
-                                 'December-February': '12-2', 'March-May': '3-5', 'March-June': '3-6',
-                                 'June-September': '6-9', 'September-November': '9-11'},
-                'Water Year Type': {description: wyt for wyt, description in c_field_list.items() if len(wyt) >= 3 and wyt[:3] == 'WYT'},
-                '': {description: var for var, description in c_field_list.items() if var == 'SHASTABIN_'}
+                "Partial Year": {'March-May': '3-5', 'March-June': '3-6', 'June-September': '6-9',
+                                 'August-October': '8-10', 'September-November': '9-11', 'October-January': '10-1',
+                                 'October-April': '10-4', 'November-March': '11-3', 'December-February': '12-2'},
+                'Water Year Type': {description: wyt for wyt, description in c_field_list.items() if 'WYT' in wyt},
+                '': {description: var for var, description in c_field_list.items() if 'SHASTABIN_' in var}
                 },
         width=300
     )
@@ -338,7 +354,7 @@ def create_widgets(scenario_names, c_field_list):
     return scen_selector, unit_selector, period_selector, wyt_selector, wyt_period_selector, wyt_period_selector_year, var_selector, bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs
 
 
-def create_metadata(scenario_names, c_field_list, c_default_units, c_calcs_for_calculated):
+def create_metadata(scenario_names, c_field_list, c_default_units, s_flag):
     """
     Create the metadata section
 
@@ -350,18 +366,28 @@ def create_metadata(scenario_names, c_field_list, c_default_units, c_calcs_for_c
         Dictionary of fields and names
     c_default_units: dict
         Dictionary of default units
-    c_calcs_for_calculated: dict
-        Dictionary of formulas for calculated fields
+    s_flag: str
+        Flag for version of the visualizer
 
     Returns
     -------
     o_metadata: obj
         Panel object holding all the metadata
     """
-    # File names for each run
-    run_names = {scen: c_default_units[scen] for scen in scenario_names}
-    df_run_names = pd.DataFrame.from_dict(run_names, orient='index', columns=['File Name'])
-    df_run_names.index.name = 'Scenario Name'
+    if s_flag == 'calsim':
+        # File names for each run
+        run_names = {scen: c_default_units[scen] for scen in scenario_names}
+        df_run_names = pd.DataFrame.from_dict(run_names, orient='index', columns=['File Name'])
+        df_run_names.index.name = 'Scenario Name'
+    elif s_flag == 'temperature':
+        # dictionary of files for each run
+        run_names = {scen: c_default_units[scen] for scen in scenario_names}
+        df_run_names = pd.DataFrame.from_dict(run_names, orient='index')
+        df_run_names.index.name = 'Scenario Name'
+        df_run_names.rename(columns={'calsim_DV': 'CalSim DV File','calsim_SV': 'CalSim SV File', 'AR_WQ_Report': 'American River Output',
+                                     'a_CALSIMII_HEC5Q': 'American River Input', 'SR_WQ_Report': 'Sacramento River Output', 's_CALSIMII_HEC5Q': 'Sacramento River Input'}, inplace=True)
+    elif s_flag == 'salinity':
+        warnings.warn('Salinity not implimented yet')
 
     # Title for file names
     o_scen_names_title = pn.pane.Markdown("# Files and names")
@@ -375,6 +401,38 @@ def create_metadata(scenario_names, c_field_list, c_default_units, c_calcs_for_c
 
     # Title for fields and descriptions
     o_field_names_title = pn.pane.Markdown("# Fields and descriptions")
+
+    # Dictionary with formulas for calculated fields
+    c_calcs_for_calculated = {
+        'Total System Storage SWP and CVP': 'S_TRNTY + S_SHSTA + S_OROVL + S_FOLSM + S_SLUIS_CVP + S_SLUIS_SWP',
+        'Total Exports SWP and CVP': 'C_CAA003_SWP + C_DMC003 + C_CAA003_CVP',
+        'Total San Luis Storage SWP and CVP': 'S_SLUIS_CVP + S_SLUIS_SWP',
+        'Flow Shortage on Sac Reg for Salinity': 'MAX(MAX(RSREQSACDV, JPREQSACDV, EMREQSACDV, COREQSACDV) - (C_SAC041 + SP_SAC083_YBP037), 0)',
+        'Flow Shortage on X2 Delta Req Outflow': 'MAX(MRDO_FINALDV - NDOI, 0)',
+        'MRDO_SHORT': 'MRDO_FINALDV - NDOI_MIN',
+        'Combined Madera and Friant-Kern Canals Diversion': 'D_MLRTN_FRK000 + D_MLRTN_MDC006',
+        'Stanislaus River Delivery - Oakdale North / SSJID 1+2': 'D_STS059_OAK001 + D_SSJ004_61_PA1 + D_WDWRD_61_PA3 + D_WTPDGT_61_NU2',
+        'CVP Delivery Total': 'DEL_CVP_TOTAL_N + DEL_CVP_TOTAL_S',
+        'CVP Delivery PMI N (w CCWD)': 'DEL_CVP_PMI_N + D420',
+        'CVP Delivery North (w CCWD)': 'DEL_CVP_TOTAL_N - DEL_CVP_PMI_N + DEL_CVP_PMI_N_WAMR + D420',
+        'ShaSpill': 'np.where(TrueSpill > 0, SacExc * TrueSpill / (SacExc + AmerExc)), 0)',
+        'FolSpill': 'np.where(TrueSpill > 0, AmerExc * TrueSpill / (SacExc + AmerExc)), 0)',
+        'CVPSpill': 'SpaSpill + FolSpill',
+        '<45 (Shasta)': 'Storage.lt.45.00F (Sacramento River)',
+        '45-50 (Shasta)': 'Storage.lt.50.00F (Sacramento River) - Storage.lt.45.00F (Sacramento River)',
+        '50-55 (Shasta)': 'Storage.lt.55.00F (Sacramento River) - Storage.lt.50.00F (Sacramento River)',
+        '55-60 (Shasta)': 'Storage.lt.60.00F (Sacramento River) - Storage.lt.55.00F (Sacramento River)',
+        '60-65 (Shasta)': 'Storage.lt.65.00F (Sacramento River) - Storage.lt.60.00F (Sacramento River)',
+        '65-70 (Shasta)': 'Storage.lt.70.00F (Sacramento River) - Storage.lt.65.00F (Sacramento River)',
+        '70+ (Shasta)': 'Storage.lt.99.00F (Sacramento River) - Storage.lt.70.00F (Sacramento River)',
+        '<45 (Folsom)': 'Storage.lt.45.00F (American River)',
+        '45-50 (Folsom)': 'Storage.lt.50.00F (American River) - Storage.lt.45.00F (American River)',
+        '50-55 (Folsom)': 'Storage.lt.55.00F (American River) - Storage.lt.50.00F (American River)',
+        '55-60 (Folsom)': 'Storage.lt.60.00F (American River) - Storage.lt.55.00F (American River)',
+        '60-65 (Folsom)': 'Storage.lt.65.00F (American River) - Storage.lt.60.00F (American River)',
+        '65-70 (Folsom)': 'Storage.lt.70.00F (American River) - Storage.lt.65.00F (American River)',
+        '70+ (Folsom)': 'Storage.lt.99.00F (American River) - Storage.lt.70.00F (American River)'
+    }
 
     # Calculated field formulas
     c_used_calc_fields = {field: c_calcs_for_calculated[field] for field in c_calcs_for_calculated if field in c_field_list.keys()}
@@ -403,9 +461,8 @@ def create_metadata(scenario_names, c_field_list, c_default_units, c_calcs_for_c
     return o_metadata
 
 
-## Functions that should work for different versions if we add a flag
 def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_diffs, s_comparison,
-                 header, tabs_row):
+                 header, tabs_row, s_flag):
     """
     Creates plot objects and lays them out
 
@@ -427,6 +484,8 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
         Panel Row for widget to go in
     tabs_row: object
         Panel Row for tabs to go in
+    s_flag: str
+        Flag for version of the visualizer
 
     Returns
     -------
@@ -515,7 +574,8 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
         li_wyt_selected=wyt_selector,
         b_wyt_period_year=wyt_period_selector_year,
         li_wyt_period_months=wyt_period_selector,
-        b_show_year=exceedance_show_year_check
+        b_show_year=exceedance_show_year_check,
+        s_flag=s_flag
     )
 
     # Exceedance differences plot
@@ -532,7 +592,8 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
         li_wyt_selected=wyt_selector,
         b_wyt_period_year=wyt_period_selector_year,
         li_wyt_period_months=wyt_period_selector,
-        b_show_year=exceedance_show_year_check_diffs
+        b_show_year=exceedance_show_year_check_diffs,
+        s_flag=s_flag
     )
 
     # Bar plot
@@ -599,6 +660,30 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
         li_wyt_selected=wyt_selector
     )
 
+    if s_flag == 'temperature':
+        o_year_selector = pn.widgets.IntInput(name='Year', value=1923, step=1, start=1922, end=2021, width=100)
+        o_reservoir_toggle = pn.widgets.RadioButtonGroup(
+            name='Units selector',
+            options=['Shasta', 'Folsom'],
+            button_style='outline',
+            button_type='primary',
+            width=200,
+            margin=32
+        )
+        # add in other plots
+        bound_one_year_plots = pn.bind(
+            plot_single_year,
+            scenario_list=scen_selector,
+            df_all=df_all_data,
+            c_field_list=c_field_list,
+            s_reservoir=o_reservoir_toggle,
+            i_year=o_year_selector
+        )
+
+    elif s_flag == 'salinity':
+        warnings.warn("Salinity not implemented yet")
+
+
     # Titles for each plot, same order as the plots
     ts_title = pn.pane.Markdown("# Timeseries Plot"
                                 )
@@ -647,24 +732,8 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
                                   s_comparison=s_comparison,
                                   s_stat=monthly_stat_sel)
 
-    # Create metadata
-    # Dictionary with formulas for calculated fields
-    c_calcs_for_calculated = {
-        'Total System Storage SWP and CVP': 'S_TRNTY + S_SHSTA + S_OROVL + S_FOLSM + S_SLUIS_CVP + S_SLUIS_SWP',
-        'Total Exports SWP and CVP': 'C_CAA003_SWP + C_DMC003 + C_CAA003_CVP',
-        'Total San Luis Storage SWP and CVP': 'S_SLUIS_CVP + S_SLUIS_SWP',
-        'Flow Shortage on Sac Reg for Salinity': 'MAX(MAX(RSREQSACDV, JPREQSACDV, EMREQSACDV, COREQSACDV) - (C_SAC041 + SP_SAC083_YBP037), 0)',
-        'Flow Shortage on X2 Delta Req Outflow': 'MAX(MRDO_FINALDV - NDOI, 0)',
-        'MRDO_SHORT': 'MRDO_FINALDV - NDOI_MIN',
-        'Combined Madera and Friant-Kern Canals Diversion': 'D_MLRTN_FRK000 + D_MLRTN_MDC006',
-        'Stanislaus River Delivery - Oakdale North / SSJID 1+2': 'D_STS059_OAK001 + D_SSJ004_61_PA1 + D_WDWRD_61_PA3 + D_WTPDGT_61_NU2',
-        'CVP Delivery Total': 'DEL_CVP_TOTAL_N + DEL_CVP_TOTAL_S',
-        'CVP Delivery PMI N (w CCWD)': 'DEL_CVP_PMI_N + D420',
-        'CVP Delivery North (w CCWD)': 'DEL_CVP_TOTAL_N - DEL_CVP_PMI_N + DEL_CVP_PMI_N_WAMR + D420'
-    }
-
-    # Create the different tables of metadata
-    o_metadata = create_metadata(scenario_names, c_field_list, c_default_units, c_calcs_for_calculated)
+        # Create the different tables of metadata
+    o_metadata = create_metadata(scenario_names, c_field_list, c_default_units, s_flag)
 
     # Add widgets to header row in template and refresh objects
     header.append(scen_selector)
@@ -680,6 +749,11 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
     grouped_plots = pn.Row()
     exceedance_plots = pn.Row()
     monthly_plots = pn.Column()
+
+    if s_flag == 'temperature':
+        one_year_plots = pn.Column()
+    elif s_flag == 'salinity':
+        warnings.warn("Salinity not implemented yet")
 
     # Add everything into these containers
     single_var_widgets = pn.Row(bar_stat_sel)
@@ -699,22 +773,41 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
     monthly_plots.append(pn.Row(monthly_stat_sel))
     monthly_plots.append(pn.Row(pn.Column(monthly_title, bound_monthly_plot), pn.Column(monthly_diffs_title, bound_monthly_diffs_plot)))
 
+    if s_flag == 'temperature':
+        one_year_plots.append(pn.Row(o_year_selector, o_reservoir_toggle))
+        one_year_plots.append(bound_one_year_plots)
+    elif s_flag == 'salinity':
+        warnings.warn("Salinity not implemented yet")
+
     # create the tabs with each page of plots
-    tabs = pn.Tabs(
-        ('Bar Plot', single_var_plots),
-        ('Timeseries', timeseries_plots),
-        ('Time-Aggregated', grouped_plots),
-        ('Exceedance', exceedance_plots),
-        ('Monthly Pattern', monthly_plots),
-        ('Metadata', o_metadata)
-    )
+    if s_flag == 'calsim':
+        tabs = pn.Tabs(
+            ('Bar Plot', single_var_plots),
+            ('Timeseries', timeseries_plots),
+            ('Time-Aggregated', grouped_plots),
+            ('Exceedance', exceedance_plots),
+            ('Monthly Pattern', monthly_plots),
+            ('Metadata', o_metadata)
+        )
+    elif s_flag == 'temperature':
+        tabs = pn.Tabs(
+            ('Single Year Plots', one_year_plots),
+            ('Bar Plot', single_var_plots),
+            ('Timeseries', timeseries_plots),
+            ('Time-Aggregated', grouped_plots),
+            ('Exceedance', exceedance_plots),
+            ('Monthly Pattern', monthly_plots),
+            ('Metadata', o_metadata)
+        )
+    elif s_flag == 'salinity':
+        warnings.warn("Salinity not implemented yet")
 
     # append the tabs to the row
     tabs_row.append(tabs)
     tabs_row.param.trigger("objects")
 
 
-def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, field_col_tracker, file_picker_display, header, tabs_row):
+def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, field_col_tracker, file_picker_display, header, tabs_row, s_flag):
     """
     Adds the widgets to take in the file names
 
@@ -734,7 +827,8 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
         Panel Row for widget to go in
     tabs_row: object
         Panel Row for tabs to go in
-
+    s_flag: str
+        Flag for version of the visualizer
     Returns
     -------
         none
@@ -760,10 +854,38 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
             run_name_column.pop(0)
 
     files = file_picker_column[file_picker_col_tracker.index("dss_file")].value
-
     # Check if user is running previous scenario or new
     if len(files) > 0:
-        if "dss" in files[0].rsplit(".", 1)[1]:
+        # Temperature will pass in folders
+        if path.isdir(files[0]):
+            run_name_instructions = pn.pane.Markdown(""" 
+                            # Enter a scenario name for each folder (e.g. NAA, Alt1, etc.). 
+                            """, renderer='markdown'
+                                                     )
+            run_name_instructions_comparison = pn.pane.Markdown("""                
+                            ## <span style="color:red">One run must be marked for comparison.</span>
+                            """, renderer='markdown'
+                                                                )
+            run_name_instructions_tooltip = pn.widgets.TooltipIcon(value='A plot of differences will be created based off this scenario.')
+            run_name_column.append(pn.Column(run_name_instructions, pn.Row(run_name_instructions_comparison, run_name_instructions_tooltip)))
+            run_name_col_tracker.append("run_name_instructions")
+
+            # have user provide run names for each file, new scenario has been selected
+            for folder in files:
+                dss_run_file_label = pn.pane.Markdown("### Folder name: " + folder)
+
+                comparison_check = pn.widgets.Checkbox(name='Comparison scenario')
+                dss_run_name = pn.widgets.TextInput(max_width=500, placeholder='Enter name for scenario')
+                dss_run_name_tooltip = pn.widgets.TooltipIcon(value='Enter the name you want displayed for this run.')
+
+                run_name_column.append(dss_run_file_label)
+                run_name_col_tracker.append("dss_run_file_label")
+                run_name_column.append(comparison_check)
+                run_name_col_tracker.append("dss_comparison_checkbox")
+                run_name_column.append(pn.Row(dss_run_name, dss_run_name_tooltip))
+                run_name_col_tracker.append("dss_run_name")
+        # DSS files
+        elif "dss" in files[0].rsplit(".", 1)[1]:
             run_name_instructions = pn.pane.Markdown(""" 
                 # Enter a run name for each file (e.g. Baseline, Alt1, etc.). 
                 """, renderer='markdown'
@@ -813,7 +935,7 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
                 field_col_tracker.append("error_message")
                 return
             # no need for fields section, just start pulling the files
-            update_run_names(event, file_picker_column, file_picker_col_tracker, run_name_column, run_name_col_tracker, field_column, field_col_tracker, file_picker_display, header, tabs_row)
+            update_run_names(event, file_picker_column, file_picker_col_tracker, run_name_column, run_name_col_tracker, field_column, field_col_tracker, file_picker_display, header, tabs_row, s_flag)
 
         # add option to override TR_fields.txt
         override_TR_fields_instructions = pn.pane.Markdown("""
@@ -873,7 +995,7 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
         # When user is done adding file/run names, save inputs to variables
         done_naming.on_click(partial(update_run_names, file_picker_column=file_picker_column, file_picker_col_tracker=file_picker_col_tracker, run_name_column=run_name_column,
                                      run_name_col_tracker=run_name_col_tracker, field_column=field_column, field_col_tracker=field_col_tracker,
-                                     file_picker_display=file_picker_display, header=header, tabs_row=tabs_row))
+                                     file_picker_display=file_picker_display, header=header, tabs_row=tabs_row, s_flag=s_flag))
 
         field_column.append(done_naming)
         field_col_tracker.append("done_naming")
@@ -887,7 +1009,7 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
 
 def update_run_names(event, file_picker_column, file_picker_col_tracker, run_name_column,
                      run_name_col_tracker, field_column, field_col_tracker,
-                     file_picker_display, header, tabs_row):
+                     file_picker_display, header, tabs_row, s_flag):
     """
     Looks at what files are selected and reads in the pickle files or DSS files. If DSS, gets the inputted run names and calls the file reading functions. Creates the pickles.
 
@@ -913,6 +1035,8 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
         Panel Row for widget to go in
     tabs_row: object
         Panel Row for tabs to go in
+    s_flag: str
+        Flag for version of the visualizer
 
     Returns
     -------
@@ -929,11 +1053,12 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
         field_col_tracker.pop(error_index)
 
     #check if we have exactl one file marked for comparison and if not give an error
-    if sum([run_name_column[i].value for i, x in enumerate(run_name_col_tracker) if x == "dss_comparison_checkbox"]) != 1 and "dss" in files[0].rsplit(".",1)[1]:
-        error_message = pn.pane.Markdown("## Please make sure that exactly one file is marked for comparison.")
-        field_column.append(error_message)
-        field_col_tracker.append('error_message')
-        return
+    if path.isdir(files[0]) or "dss" in files[0].rsplit(".",1)[1]:
+        if sum([run_name_column[i].value for i, x in enumerate(run_name_col_tracker) if x == "dss_comparison_checkbox"]) != 1:
+            error_message = pn.pane.Markdown("## Please make sure that exactly one file is marked for comparison.")
+            field_column.append(error_message)
+            field_col_tracker.append('error_message')
+            return
 
     # row to indicate that the files are being read and it is loading
     loading_row = pn.Row(pn.indicators.LoadingSpinner(
@@ -946,8 +1071,125 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
     field_column.append(loading_row)
     field_col_tracker.append('loading_row')
 
-    #Check if files are dss or pkl (new or old scenario)
-    if "dss" in files[0].rsplit(".",1)[1]:
+    #Check if files are dss or pkl or folders
+    # Temperature will pass in folders
+    if path.isdir(files[0]):
+
+        # Get indices of dss run names
+        folder_name_indices = [i for i, x in enumerate(run_name_col_tracker) if x == "dss_run_name"]
+
+        # get the value of the checkbox for each run
+        comparison_indices = [run_name_column[i].value for i, x in enumerate(run_name_col_tracker) if x == "dss_comparison_checkbox"]
+
+        # Get file names
+        folders = file_picker_column[file_picker_col_tracker.index("dss_file")].value
+
+        # Get default fields and any added ones
+        # pulling from TR_fields_temperature.txt
+        c_tr_fields = get_trend_fields('TR_fields_temperature.txt')
+
+        # get the overridden fields
+        override_TR_fields = field_column[field_col_tracker.index("override_file")].value
+        c_override_fields = {}
+        if override_TR_fields:
+            override_TR_fields_text = override_TR_fields.decode()
+            for line in override_TR_fields_text.split('\n'):
+                line = line.strip()
+                new_field = line.split(maxsplit=1)
+                if len(new_field) == 0:
+                    continue
+                elif len(new_field) == 1:
+                    field = new_field[0]
+                    field = field.strip(' ').upper()
+                    if field in c_tr_fields.keys():
+                        c_override_fields[field] = c_tr_fields[field]
+                    else:
+                        c_override_fields[field] = field
+                else:
+                    field, description = new_field
+
+                    field = field.strip(' ').upper()
+                    description = description.strip('\n')
+                    description = description + ' (' + field + ')'
+                    c_override_fields[field] = description
+
+        # to hold the ones entered in the optional field
+        c_new_fields = {}
+        if field_column[field_col_tracker.index("add_field_text")].value != '':
+            for line in field_column[field_col_tracker.index("add_field_text")].value.split('\n'):
+                line = line.strip()
+                new_field = line.split(maxsplit=1)
+                if len(new_field) == 0:
+                    continue
+                elif len(new_field) == 1:
+                    field = new_field[0]
+                    field = field.strip(' ').upper()
+                    c_new_fields[field] = field
+                else:
+                    field, description = new_field
+
+                    field = field.strip(' ').upper()
+                    description = description.strip('\n')
+                    description = description + ' (' + field + ')'
+                    c_new_fields[field] = description
+        if override_TR_fields:
+            c_field_list = c_override_fields | c_new_fields
+        else:
+            c_field_list = c_tr_fields | c_new_fields
+        runs = []
+
+        # Pair file names with user entered run names
+        for file_index, run_index in enumerate(folder_name_indices):
+            # structure of runs is [["Description_1", ("File_1.dss")],
+            #               ["Description_2", ("File_2.dss")],
+            #          ...  ["Description_n", ("File_n.dss")]]
+            # The names can be anything though, e.g. ["Alt2v1", Alt2v1_VAs.dss"]
+
+            # find where the box is checked for comparison and set comparison name tracker to files name
+            if comparison_indices[file_index]:
+                # define comparison name variable
+                s_comparison = run_name_column[run_index][0].value
+
+            c_dss_paths = {'calsim_DV': '',
+                           'calsim_SV': '',
+                           'AR_WQ_Report': '',
+                           'a_CALSIMII_HEC5Q': '',
+                           'SR_WQ_Report': '',
+                           's_CALSIMII_HEC5Q': ''
+                           }
+            for s_file in os.listdir(files[file_index]):
+                s_curr_path = os.path.join(folders[file_index], s_file)
+                if os.path.isfile(s_curr_path):
+                    if 'SV' in s_file or 'sv' in s_file:
+                        c_dss_paths['calsim_SV'] = s_curr_path
+                    elif 'DV' in s_file or 'dv' in s_file:
+                        c_dss_paths['calsim_DV'] = s_curr_path
+                elif s_file == 'american':
+                    c_dss_paths['AR_WQ_Report'] = os.path.join(s_curr_path, 'AR_WQ_Report.dss')
+                    c_dss_paths['a_CALSIMII_HEC5Q'] = os.path.join(s_curr_path,  'CALSIMII_HEC5Q.dss')
+                elif s_file == 'sacramento':
+                    c_dss_paths['SR_WQ_Report'] = os.path.join(s_curr_path, 'SR_WQ_Report.dss')
+                    c_dss_paths['s_CALSIMII_HEC5Q'] = os.path.join(s_curr_path, 'CALSIMII_HEC5Q.dss')
+            sl_current_folder_contents = os.listdir(folders[file_index])
+            runs.append([run_name_column[run_index][0].value, c_dss_paths])
+        print(runs)
+        append_list, baseline_stack, c_default_units, c_field_list = file_reader(runs, c_field_list, s_comparison, s_flag)
+        pickler(append_list, baseline_stack, c_default_units, c_field_list)
+
+        # This runs no matter what. The pickle files allow you to come back and
+        # pull the same variables without waiting for the file reads to complete
+        df_all_data, df_diffs, c_default_units, c_field_list = load_pickles([])
+
+        # Write to Excel.
+        # try:
+        #     df_all_data.to_excel("DSS_contents.xlsx")
+        # except:
+        #     print("Error writing output file. ")
+
+        print(f'Pulled: {len(runs)} files')
+        print(runs)
+    # dss files (calsim)
+    elif "dss" in files[0].rsplit(".",1)[1]:
         # Get indices of dss run names
         dss_name_indices = [i for i, x in enumerate(run_name_col_tracker) if x == "dss_run_name"]
         # get the value of the checkbox for each run
@@ -958,7 +1200,7 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
 
         # Get default fields and any added ones
         # pulling from TR_fields.txt
-        c_tr_fields = get_trend_fields()
+        c_tr_fields = get_trend_fields('TR_fields.txt')
 
         # get the overridden fields
         override_TR_fields = field_column[field_col_tracker.index("override_file")].value
@@ -1019,12 +1261,13 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
 
             # find where the box is checked for comparison and set comparison name tracker to files name
             if comparison_indices[file_index]:
-                # update global variable
+                # define comparison name variable
                 s_comparison = run_name_column[run_index][0].value
 
             runs.append([run_name_column[run_index][0].value, (files[file_index])])
         print(runs)
-        append_list, baseline_stack, c_default_units, c_field_list = file_reader(runs, c_field_list, s_comparison)
+        append_list, baseline_stack, c_default_units, c_field_list = file_reader(runs, c_field_list, s_comparison, s_flag)
+
         pickler(append_list, baseline_stack, c_default_units, c_field_list)
 
         # This runs no matter what. The pickle files allow you to come back and
@@ -1057,7 +1300,7 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
     field_column.param.trigger("objects")
 
     #Fill in widgets for other tabs
-    create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_diffs, s_comparison, header, tabs_row)
+    create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_diffs, s_comparison, header, tabs_row, s_flag)
 
     # once we have the widgets and graphs, remove the file picker
     for _ in range(len(file_picker_display)):
