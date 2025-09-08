@@ -12,7 +12,15 @@ To activate the environment, run the line:
 
 In the environment, run the line: 
 
-`python cs3_viz_app_main.py`
+`python calview_calsim.py`
+
+or
+
+`python calview_temperature.py`
+
+or
+
+`python calview_salinity.py`
 
 # To Compile the Executable 
 
@@ -23,5 +31,9 @@ In the environment, run the line:
 or
 
 `pyinstaller build_calview_temperature.spec`
+
+or 
+
+`pyinstaller build_calview_salinity.spec`
 
 The compiled executable will be created in a folder called *dist*. Double-click on the executable to launch it.
