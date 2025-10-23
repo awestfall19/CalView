@@ -43,6 +43,7 @@ def get_trend_fields(s_fields_file):
         else:
             field, description = curr_field
         if '/' not in field:
+            # this happens for calsim and those are always uppercase
             field = field.strip(' ').upper()
         else:
             field = field.strip(' ')

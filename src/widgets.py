@@ -952,13 +952,13 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
     
             ## If you would like to override the built in default fields, select a text file with your preferred fields.
     
-            ### Each line must be a field with the variable name followed by a space or tab followed by the description of the variable. This is the default format if copied and pasted from an excel sheet.
+            ### Each line must be a field with the variable name followed by a tab and the description of the variable. This is the default format if copied and pasted from an excel sheet.
     
             ### Example:
     
-            > S_FOLSM Folsom Storage
+            > S_FOLSM\tFolsom Storage
             >
-            > S_SHSTA Shasta Storage
+            > S_SHSTA\tShasta Storage
             >
             > ...
             """, renderer='markdown')
@@ -970,13 +970,13 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
 
                         ## If you would like to override the built in default fields, select a text file with your preferred fields.
 
-                        ### Each line must be a field with the variable name followed by a space or tab followed by the description of the variable. This is the default format if copied and pasted from an excel sheet.
+                        ### Each line must be a field with the variable name followed by a tab and the description of the variable. This is the default format if copied and pasted from an excel sheet.
 
                         ### Example:
 
-                        > Stor-Temp/FOLSOM/STORAGE	Folsom Storage
+                        > Stor-Temp/FOLSOM/STORAGE\tFolsom Storage
                         >
-                        > AMERICAN/BLW FOLSOM DAM/FLOW	American River below Folsom Dam Flow
+                        > AMERICAN/BLW FOLSOM DAM/FLOW\tAmerican River below Folsom Dam Flow
                         >
                         > ...
                         """, renderer='markdown')
@@ -998,13 +998,13 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
     
             ## Add additional fields to visualize that are not present in the default list (or your chosen list). 
     
-            ### Each line is a field with the variable name followed by a space or tab followed by the description of the variable. This is the default format if copied and pasted from an excel sheet.
+            ### Each line is a field with the variable name followed by a tab and the the description of the variable. This is the default format if copied and pasted from an excel sheet.
     
             ### Example:
     
-            > S_FOLSM Folsom Storage
+            > S_FOLSM\tFolsom Storage
             >
-            > S_SHSTA Shasta Storage
+            > S_SHSTA\tShasta Storage
             >
             >...
     
@@ -1015,13 +1015,13 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
 
             ## Add additional fields to visualize that are not present in the default list (or your chosen list). 
 
-            ### Each line is a field with the variable name followed by a space or tab followed by the description of the variable. This is the default format if copied and pasted from an excel sheet.
+            ### Each line is a field with the variable name followed followed by a tab and the description of the variable. This is the default format if copied and pasted from an excel sheet.
 
             ### Example:
 
-            > Stor-Temp/FOLSOM/STORAGE	Folsom Storage
+            > Stor-Temp/FOLSOM/STORAGE\tFolsom Storage
             >
-            > AMERICAN/BLW FOLSOM DAM/FLOW	American River below Folsom Dam Flow
+            > AMERICAN/BLW FOLSOM DAM/FLOW\tAmerican River below Folsom Dam Flow
             >
             >...
 
@@ -1148,7 +1148,7 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
             override_TR_fields_text = override_TR_fields.decode()
             for line in override_TR_fields_text.split('\n'):
                 line = line.strip()
-                new_field = line.split(maxsplit=1)
+                new_field = line.split('\t')
                 if len(new_field) == 0:
                     continue
                 elif len(new_field) == 1:
@@ -1161,7 +1161,11 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
                 else:
                     field, description = new_field
 
-                    field = field.strip(' ').upper()
+                    if '/' not in field:
+                        # this happens for calsim and those are always uppercase
+                        field = field.strip(' ').upper()
+                    else:
+                        field = field.strip(' ')
                     description = description.strip('\n')
                     description = description + ' (' + field + ')'
                     c_override_fields[field] = description
@@ -1171,7 +1175,7 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
         if field_column[field_col_tracker.index("add_field_text")].value != '':
             for line in field_column[field_col_tracker.index("add_field_text")].value.split('\n'):
                 line = line.strip()
-                new_field = line.split(maxsplit=1)
+                new_field = line.split('\t')
                 if len(new_field) == 0:
                     continue
                 elif len(new_field) == 1:
@@ -1181,7 +1185,11 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
                 else:
                     field, description = new_field
 
-                    field = field.strip(' ').upper()
+                    if '/' not in field:
+                        # this happens for calsim and those are always uppercase
+                        field = field.strip(' ').upper()
+                    else:
+                        field = field.strip(' ')
                     description = description.strip('\n')
                     description = description + ' (' + field + ')'
                     c_new_fields[field] = description
