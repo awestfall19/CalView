@@ -66,7 +66,7 @@ def update_wyt_names(target, event):
         none
     """
     if event.new != event.old:
-        if 'WYT' in event.new or 'SHASTABIN_' in event.new:
+        if isinstance(event.new, str) and ('WYT' in event.new or 'SHASTABIN_' in event.new):
 
             # Dictionary with all the names for each number code for each WYT field
             c_wyt_names = {
@@ -207,7 +207,7 @@ def hide_show_wyt(event, header):
     # make sure that the header has been populated
     if len(header) > 2:
         # check if a WYT is selected
-        if 'WYT' in event.new or 'SHASTABIN_' in event.new:
+        if isinstance(event.new, str) and ('WYT' in event.new or 'SHASTABIN_' in event.new):
             # turn on the visibility
             header[2][1].visible = True
         else:

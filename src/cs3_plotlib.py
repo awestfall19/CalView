@@ -366,7 +366,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
     var_list_final = [c_field_list[var] for var in var_list_final]
 
     # if we are sorting by WYT we need to do some work before switching to wide frame
-    if 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
+    if isinstance(period_choice, str) and ('WYT' in period_choice or 'SHASTABIN_' in period_choice):
         # sort for the years we want
         # see if any years are selected
         if not li_wyt_selected:
@@ -404,7 +404,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
     keeplist = []
 
     # if grouping by wyt we need to include that variable
-    if 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
+    if isinstance(period_choice, str) and ('WYT' in period_choice or 'SHASTABIN_' in period_choice):
         for scenario in scenario_list:
             df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][[s_wyt_col]]
             df_temp.reset_index(inplace=True, drop=True)
@@ -461,7 +461,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_plot, max_height=500))
 
     # if water year type is selected as period
-    elif 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
+    elif isinstance(period_choice, str) and ('WYT' in period_choice or 'SHASTABIN_' in period_choice):
         # filter for selected WYTs
         # get rif of anywhere all wyt columns are empty
         df_wide = df_wide.dropna(subset=keeplist[:len(scenario_list)], how='all')
@@ -764,7 +764,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
     var_list_final = [c_field_list[var] for var in var_list_final]
 
     # if we are sorting by WYT we need to do some work before switching to wide frame
-    if 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
+    if isinstance(period_choice, str) and ('WYT' in period_choice or 'SHASTABIN_' in period_choice):
         # sort for the years we want
         # see if any years are selected
         if not li_wyt_selected:
@@ -804,7 +804,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
     keeplist = []
 
     # if grouping by wyt we need to include that variable
-    if 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
+    if isinstance(period_choice, str) and ('WYT' in period_choice or 'SHASTABIN_' in period_choice):
         for scenario in scenario_list:
             df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][[s_wyt_col]]
             df_temp.reset_index(inplace=True, drop=True)
@@ -885,7 +885,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
 
     # if water year type is selected as period
-    elif 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
+    elif isinstance(period_choice, str) and ('WYT' in period_choice or 'SHASTABIN_' in period_choice):
         # filter for selected WYTs
         # get rif of anywhere all wyt columns are empty
         df_wide = df_wide.dropna(subset=keeplist[:len(scenario_list)], how='all')
@@ -1259,7 +1259,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     var_list_final = [c_field_list[var] for var in var_list_final]
 
     # if we are sorting by WYT we need to do some work before switching to wide frame
-    if 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
+    if isinstance(period_choice, str) and ('WYT' in period_choice or 'SHASTABIN_' in period_choice):
         # sort for the years we want
         # see if any years are selected
         if not li_wyt_selected:
@@ -1296,7 +1296,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     keeplist = []
 
     # if grouping by wyt we need to include that variable
-    if 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
+    if isinstance(period_choice, str) and ('WYT' in period_choice or 'SHASTABIN_' in period_choice):
         for scenario in scenario_list:
             df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][[s_wyt_col]]
             df_temp.reset_index(inplace=True, drop=True)
@@ -1359,7 +1359,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
                 df_stats = df_exceed.loc[i_exceedance_prob].to_frame()
 
     # if water year type is selected as period
-    elif 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
+    elif isinstance(period_choice, str) and ('WYT' in period_choice or 'SHASTABIN_' in period_choice):
         # filter for selected WYTs
         # get rif of anywhere all wyt columns are empty
         df_wide = df_wide.dropna(subset=keeplist[:len(scenario_list)], how='all')
@@ -1559,6 +1559,11 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     # Month chosen
     elif isinstance(period_choice, int):
         df_wide = df_wide[df_wide.Month == period_choice]
+
+        # Can't sum dates: drop
+        df_wide = df_wide.drop('Date', axis=1)
+
+        # this will group by year so there will only be one value
         df_grouped = df_wide.groupby(by=['JanDecYear']).agg(agg_func)
         df_plot = df_grouped[keeplist]
 
@@ -1816,7 +1821,7 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
     var_list_final = [c_field_list[var] for var in var_list_final]
 
     # if we are sorting by WYT we need to do some work before switching to wide frame
-    if 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
+    if isinstance(period_choice, str) and ('WYT' in period_choice or 'SHASTABIN_' in period_choice):
         # sort for the years we want
         # see if any years are selected
         if not li_wyt_selected:
@@ -1856,7 +1861,7 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
     s_title = ''
 
     # if grouping by wyt we need to include that variable
-    if 'WYT' in period_choice or 'SHASTABIN_' in period_choice:
+    if isinstance(period_choice, str) and ('WYT' in period_choice or 'SHASTABIN_' in period_choice):
         # to hold the wyt columns so we can filter with them but they dont end up in keeplist
         ls_wyt_cols = []
         for scenario in scenario_list:
