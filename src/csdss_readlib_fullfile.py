@@ -291,7 +291,11 @@ def single_file_pull(dss_file, c_target_ts_list, scenario_name, s_flag):
 
     # if the dataframe is empty, raise an error
     else:
-        raise Exception(f'No fields from field list found in {dss_file}')
+        if s_flag == 'calsim':
+            # if calsim fully fail
+            raise Exception(f'No fields from field list found in {dss_file}')
+        else:
+            warnings.warn(f'No fields from field list found in {dss_file}')
 
     return df_ts, c_target_ts_list_final, c_default_units
 
