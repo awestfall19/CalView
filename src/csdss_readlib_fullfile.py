@@ -218,9 +218,7 @@ def single_file_pull(dss_file, c_target_ts_list, scenario_name, s_flag):
     fid = HecDss.Open(dss_file)
 
     # getPathnamesDict returns a dict of pathnames.
-    # All CalSim outputs are contained in 'TS'
-    pathNamesDict = fid.getPathnameDict()
-    pathNames = np.array(list(pathNamesDict.values())[0])
+    pathNames = fid.search_path()
 
     dfPaths = pd.DataFrame(pathNames, columns=["AllPaths"])
 
@@ -273,10 +271,11 @@ def single_file_pull(dss_file, c_target_ts_list, scenario_name, s_flag):
             working_ts = fid.read_ts(target_pathName, trim_missing=True)
 
             # add in units
-            c_default_units[b_part] = working_ts.units
+            c_default_units[b_part] = working_ts.data_units
 
             # add it to full dataframe
-            df_working = pd.DataFrame(working_ts.values.astype('float64'), index=working_ts.pytimes, columns=[b_part])
+            ol_times = [o_time.datetime() for o_time in working_ts.times]
+            df_working = pd.DataFrame(working_ts.values.astype('float64'), index=ol_times, columns=[b_part])
             df_ts = df_ts.merge(right=df_working, how='outer', left_index=True, right_index=True)
 
         except:
@@ -292,7 +291,11 @@ def single_file_pull(dss_file, c_target_ts_list, scenario_name, s_flag):
 
     # if the dataframe is empty, raise an error
     else:
-        raise Exception(f'No fields from field list found in {dss_file}')
+        if s_flag == 'calsim':
+            # if calsim fully fail
+            raise Exception(f'No fields from field list found in {dss_file}')
+        else:
+            warnings.warn(f'No fields from field list found in {dss_file}')
 
     return df_ts, c_target_ts_list_final, c_default_units
 
