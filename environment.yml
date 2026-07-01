@@ -2,9 +2,6 @@ name: calview
 
 dependencies:
      - python=3.13
-     - pip
-     - pip:
-          - pydsstools==3.0
      - numpy=2.4
      - pandas=3.0
      - openpyxl=3.1
@@ -14,3 +11,6 @@ dependencies:
      - bokeh=3.9
      - pyinstaller=6.20
      - rasterio
+     - pip
+     - pip:
+          - pydsstools==3.1
