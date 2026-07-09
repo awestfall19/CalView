@@ -13,7 +13,7 @@ a = Analysis(
     ['calview_salinity.py'],
     pathex=[],
     binaries=[],
-    datas=[('inputs/TR_fields_salinity.txt', 'inputs/.'), ('inputs/usbr_logo.jpg', 'inputs/.')] + ,etadata_datas + gdal_datas,
+    datas=[('inputs/TR_fields_salinity.txt', 'inputs/.'), ('inputs/usbr_logo.jpg', 'inputs/.')] + metadata_datas + gdal_datas,
     hiddenimports=[
         'rasterio.sample',
         'rasterio._io',
