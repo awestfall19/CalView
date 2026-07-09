@@ -10,7 +10,7 @@ dependencies:
      - hvplot=0.12
      - bokeh=3.9
      - pyinstaller=6.20
-     - rasterio
+     - rasterio=1.5
      - pip
      - pip:
           - pydsstools==3.1
